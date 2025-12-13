@@ -26,6 +26,9 @@ app.register_blueprint(auth_bp, url_prefix="/auth")
 from routes.requests import requests_bp
 app.register_blueprint(requests_bp, url_prefix="/requests")
 
+from routes.admin import admin_bp
+app.register_blueprint(admin_bp, url_prefix="/admin")
+
 
 @app.route('/')
 def home():

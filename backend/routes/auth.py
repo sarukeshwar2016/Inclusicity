@@ -184,11 +184,13 @@ def login():
         return jsonify({"error": "Email and password required"}), 400
 
     account = db.users.find_one({"email": email})
-    role = "user"
 
-    if not account:
+    if account:
+        role = account.get("role", "user")
+    else:
         account = db.helpers.find_one({"email": email})
         role = "helper"
+
 
     if not account or not check_password_hash(account["password"], password):
         return jsonify({"error": "Invalid credentials"}), 401
