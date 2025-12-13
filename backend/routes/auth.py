@@ -208,6 +208,34 @@ def login():
         "role": role
     }), 200
 
+# =========================================================
+# HELPER AVAILABILITY TOGGLE
+# =========================================================
+@auth_bp.route("/helper/availability", methods=["PATCH"])
+@jwt_required
+@role_required("helper")
+def toggle_availability():
+    db = get_db()
+    data = request.get_json() or {}
+
+    if "available" not in data:
+        return jsonify({"error": "Availability field required"}), 400
+
+    if not isinstance(data["available"], bool):
+        return jsonify({"error": "Availability must be true or false"}), 400
+
+    helper_id = ObjectId(request.user["user_id"])
+
+    db.helpers.update_one(
+        {"_id": helper_id},
+        {"$set": {"available": data["available"]}}
+    )
+
+    return jsonify({
+        "message": "Availability updated",
+        "available": data["available"]
+    }), 200
+
 
 # =========================================================
 # VERIFY HELPER (ADMIN / NGO)
