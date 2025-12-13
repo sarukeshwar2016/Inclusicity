@@ -48,7 +48,7 @@ def jwt_required(f):
             return jsonify({"error": "Authorization token missing"}), 401
 
         try:
-            token = auth_header.split(" ")[1]
+            token = auth_header.split(" ")[1]  # Bearer <token>
             request.user = decode_jwt(token)
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
@@ -59,14 +59,104 @@ def jwt_required(f):
     return wrapper
 
 
-# ---------------------------
+# =========================================================
+# USER SIGNUP
+# =========================================================
+@auth_bp.route("/signup", methods=["POST"])
+def signup_user():
+    db = get_db()
+    data = request.get_json() or {}
+
+    required = ["name", "email", "password", "age"]
+    if any(k not in data for k in required):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    email = data["email"].strip().lower()
+
+    if db.users.find_one({"email": email}) or db.helpers.find_one({"email": email}):
+        return jsonify({"error": "Email already exists"}), 409
+
+    try:
+        age = int(data["age"])
+    except ValueError:
+        return jsonify({"error": "Age must be a number"}), 400
+
+    user = {
+        "name": data["name"],
+        "email": email,
+        "password": generate_password_hash(data["password"]),
+        "age": age,
+        "city": data.get("city"),
+        "phone": data.get("phone"),
+        "mobility_needs": data.get("mobility_needs"),
+        "role": "user",
+        "created_at": datetime.utcnow()
+    }
+
+    db.users.insert_one(user)
+    return jsonify({"message": "User registered successfully"}), 201
+
+
+# =========================================================
+# HELPER SIGNUP
+# =========================================================
+@auth_bp.route("/signup/helper", methods=["POST"])
+def signup_helper():
+    db = get_db()
+    data = request.get_json() or {}
+
+    required = ["name", "email", "password", "age", "city", "phone", "ngo_id", "skills"]
+    if any(k not in data for k in required):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    email = data["email"].strip().lower()
+
+    if db.users.find_one({"email": email}) or db.helpers.find_one({"email": email}):
+        return jsonify({"error": "Email already exists"}), 409
+
+    try:
+        age = int(data["age"])
+        if age < 18:
+            return jsonify({"error": "Helper must be 18 or older"}), 400
+    except ValueError:
+        return jsonify({"error": "Invalid age"}), 400
+
+    if not isinstance(data["skills"], list) or not data["skills"]:
+        return jsonify({"error": "Skills must be a non-empty list"}), 400
+
+    ngo = db.ngos.find_one({"_id": data["ngo_id"]})
+    if not ngo:
+        return jsonify({"error": "Invalid NGO"}), 400
+
+    helper = {
+        "name": data["name"],
+        "email": email,
+        "password": generate_password_hash(data["password"]),
+        "age": age,
+        "city": data["city"],
+        "phone": data["phone"],
+        "skills": data["skills"],
+        "ngo_id": data["ngo_id"],
+        "experience": data.get("experience"),
+        "gender": data.get("gender"),
+        "verified": False,
+        "available": True,
+        "role": "helper",
+        "created_at": datetime.utcnow()
+    }
+
+    db.helpers.insert_one(helper)
+    return jsonify({"message": "Helper application submitted"}), 201
+
+
+# =========================================================
 # LOGIN (USER + HELPER)
-# ---------------------------
+# =========================================================
 @auth_bp.route("/login", methods=["POST"])
 def login():
     db = get_db()
-
     data = request.get_json() or {}
+
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
 
@@ -81,14 +171,14 @@ def login():
         role = "helper"
 
     if not account or not check_password_hash(account["password"], password):
-        return jsonify({"error": "Invalid email or password"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
 
-    if role == "helper" and not account.get("verified", False):
-        return jsonify({"error": "Helper not verified yet"}), 403
+    if role == "helper" and not account.get("verified"):
+        return jsonify({"error": "Helper not verified"}), 403
 
     token = generate_jwt({
         "user_id": str(account["_id"]),
-        "email": account["email"],
+        "email": email,
         "role": role
     })
 
@@ -99,21 +189,44 @@ def login():
     }), 200
 
 
-# ---------------------------
-# PROTECTED TEST ROUTE
-# ---------------------------
+# =========================================================
+# VERIFY HELPER (ADMIN / NGO)
+# =========================================================
+@auth_bp.route("/helpers/<identifier>/verify", methods=["PATCH"])
+def verify_helper(identifier):
+    db = get_db()
+
+    helper = db.helpers.find_one({"email": identifier})
+    if not helper:
+        try:
+            helper = db.helpers.find_one({"_id": ObjectId(identifier)})
+        except:
+            return jsonify({"error": "Helper not found"}), 404
+
+    db.helpers.update_one(
+        {"_id": helper["_id"]},
+        {"$set": {"verified": True}}
+    )
+
+    return jsonify({"message": "Helper verified"}), 200
+
+
+# =========================================================
+# PROTECTED ROUTES (JWT TEST)
+# =========================================================
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required
 def me():
     return jsonify({
-        "message": "JWT is valid",
+        "message": "Access granted",
         "user": request.user
     }), 200
-@auth_bp.route('/protected-test', methods=['GET'])
+
+
+@auth_bp.route("/protected-test", methods=["GET"])
 @jwt_required
 def protected_test():
     return jsonify({
         "message": "JWT is valid",
         "user": request.user
     }), 200
-
