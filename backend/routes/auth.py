@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from bson import ObjectId
 
@@ -180,3 +180,48 @@ def verify_helper(identifier):
 
     db.helpers.update_one({"_id": helper["_id"]}, {"$set": {"verified": True}})
     return jsonify({"message": f"Helper {helper.get('email')} is now verified"}), 200
+
+# ---------------------------
+# LOGIN (User + Helper)
+# ---------------------------
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    db = get_db()
+    if db is None:
+        return jsonify({"error": "Database not initialized"}), 500
+
+    data = request.get_json() or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    # 1️⃣ Check in users collection
+    account = db.users.find_one({"email": email})
+    role = "user"
+
+    # 2️⃣ If not user, check helpers
+    if not account:
+        account = db.helpers.find_one({"email": email})
+        role = "helper"
+
+    if not account:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # 3️⃣ Verify password
+    if not check_password_hash(account["password"], password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # 4️⃣ Extra rule for helpers
+    if role == "helper" and not account.get("verified", False):
+        return jsonify({"error": "Helper not verified yet"}), 403
+
+    # 5️⃣ Success response (JWT will come next)
+    return jsonify({
+        "message": "Login successful",
+        "role": role,
+        "user_id": str(account["_id"]),
+        "name": account.get("name"),
+        "email": account.get("email")
+    }), 200
