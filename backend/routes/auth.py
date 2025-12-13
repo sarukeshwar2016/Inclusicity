@@ -7,9 +7,9 @@ from bson import ObjectId
 
 auth_bp = Blueprint("auth", __name__)
 
-# ---------------------------
+# =========================================================
 # DB helper
-# ---------------------------
+# =========================================================
 def get_db():
     pymongo_ext = current_app.extensions.get("pymongo")
     if pymongo_ext:
@@ -18,9 +18,9 @@ def get_db():
     return mongo.db
 
 
-# ---------------------------
+# =========================================================
 # JWT helpers
-# ---------------------------
+# =========================================================
 def generate_jwt(payload):
     payload["exp"] = datetime.utcnow() + timedelta(
         hours=current_app.config["JWT_EXPIRY_HOURS"]
@@ -44,6 +44,7 @@ def jwt_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
+
         if not auth_header:
             return jsonify({"error": "Authorization token missing"}), 401
 
@@ -57,6 +58,25 @@ def jwt_required(f):
 
         return f(*args, **kwargs)
     return wrapper
+
+
+def role_required(required_role):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            user = getattr(request, "user", None)
+
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            if user.get("role") != required_role:
+                return jsonify({
+                    "error": f"Access denied. {required_role} only."
+                }), 403
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 # =========================================================
@@ -212,8 +232,10 @@ def verify_helper(identifier):
 
 
 # =========================================================
-# PROTECTED ROUTES (JWT TEST)
+# PROTECTED ROUTES
 # =========================================================
+
+# Any logged-in user
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required
 def me():
@@ -223,10 +245,23 @@ def me():
     }), 200
 
 
-@auth_bp.route("/protected-test", methods=["GET"])
+# USER-only route
+@auth_bp.route("/user/dashboard", methods=["GET"])
 @jwt_required
-def protected_test():
+@role_required("user")
+def user_dashboard():
     return jsonify({
-        "message": "JWT is valid",
+        "message": "Welcome USER",
+        "user": request.user
+    }), 200
+
+
+# HELPER-only route
+@auth_bp.route("/helper/dashboard", methods=["GET"])
+@jwt_required
+@role_required("helper")
+def helper_dashboard():
+    return jsonify({
+        "message": "Welcome HELPER",
         "user": request.user
     }), 200
