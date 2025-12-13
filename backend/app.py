@@ -7,12 +7,19 @@ load_dotenv()
 
 app = Flask(__name__)
 
-mongo_uri = os.getenv("MONGO_URI")
-app.config["MONGO_URI"] = mongo_uri
+# ✅ JWT CONFIG (MUST be inside app.config)
+app.config["JWT_SECRET_KEY"] = os.getenv(
+    "JWT_SECRET_KEY",
+    "super-secret-key-change-this"
+)
+app.config["JWT_ALGORITHM"] = "HS256"
+app.config["JWT_EXPIRY_HOURS"] = 24
 
+# MongoDB
+app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 mongo = PyMongo(app)
 
-# Import Blueprints
+# Register Blueprints
 from routes.auth import auth_bp
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
