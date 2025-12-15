@@ -1,12 +1,17 @@
 from flask import Flask
 from flask_pymongo import PyMongo
+from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 
 app = Flask(__name__)
 
-# ✅ JWT CONFIG (MUST be inside app.config)
+# ✅ ENABLE CORS
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# ✅ JWT CONFIG
 app.config["JWT_SECRET_KEY"] = os.getenv(
     "JWT_SECRET_KEY",
     "super-secret-key-change-this"
@@ -28,6 +33,8 @@ app.register_blueprint(requests_bp, url_prefix="/requests")
 from routes.admin import admin_bp
 app.register_blueprint(admin_bp, url_prefix="/admin")
 
+from routes.ratings import ratings_bp
+app.register_blueprint(ratings_bp, url_prefix="/ratings")
 
 @app.route('/')
 def home():
