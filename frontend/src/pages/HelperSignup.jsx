@@ -18,10 +18,7 @@ const HelperSignup = () => {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
@@ -40,112 +37,97 @@ const HelperSignup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Become a Helper</h1>
-          <p className="text-gray-600">Make a difference in your community</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-200 via-gray-100 to-slate-300 flex items-center justify-center px-4">
+      <div className="relative w-full max-w-5xl rounded-3xl bg-white/70 backdrop-blur-2xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
+
+        {/* Divider */}
+        <div className="hidden md:block absolute inset-y-0 left-1/2 w-[2px] bg-gradient-to-b from-transparent via-slate-400 to-transparent shadow-md" />
+
+        {/* Left Panel */}
+        <div className="flex flex-col justify-center px-10 py-12">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            <span className="text-emerald-700">Inclusi</span>
+            <span className="text-slate-700">City</span>
+          </h1>
+
+          <p className="text-gray-700 text-lg mb-6 max-w-md">
+            Become a helper and support inclusive, dignity-first communities.
+          </p>
+
+          <ul className="space-y-3 text-sm text-gray-600">
+            <li>• Assist people with everyday accessibility needs</li>
+            <li>• Share skills that make cities more inclusive</li>
+            <li>• Be part of a trusted local support network</li>
+          </ul>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Name
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Your name"
-            />
+        {/* Right Panel */}
+        <div className="px-6 sm:px-10 py-12 bg-white/60">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-1">
+              Helper Sign Up
+            </h2>
+            <p className="text-gray-600">Create your helper account</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="your@email.com"
-            />
-          </div>
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="••••••••"
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {[
+              { label: 'Name', name: 'name', type: 'text', placeholder: 'Your name' },
+              { label: 'Email', name: 'email', type: 'email', placeholder: 'you@example.com' },
+              { label: 'Password', name: 'password', type: 'password', placeholder: '••••••••' },
+              { label: 'City', name: 'city', type: 'text', placeholder: 'Your city' },
+            ].map((field) => (
+              <div key={field.name}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {field.label}
+                </label>
+                <input
+                  {...field}
+                  value={formData[field.name]}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            ))}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              City
-            </label>
-            <input
-              type="text"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Your city"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Skills
+              </label>
+              <textarea
+                name="skills"
+                rows="3"
+                value={formData.skills}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                placeholder="How can you help?"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Skills
-            </label>
-            <textarea
-              name="skills"
-              value={formData.skills}
-              onChange={handleChange}
-              required
-              rows="3"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Describe your skills and how you can help"
-            />
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-60"
+            >
+              <Heart size={18} />
+              {loading ? 'Creating account…' : 'Sign Up as Helper'}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center space-x-2 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Heart size={20} />
-            <span>{loading ? 'Creating account...' : 'Sign Up as Helper'}</span>
-          </button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-center text-sm text-gray-600">
+          <div className="mt-6 text-sm text-gray-600 text-center">
             Already have an account?{' '}
-            <Link to="/login" className="text-green-600 hover:text-green-700 font-medium">
+            <Link to="/login" className="text-teal-700 hover:underline">
               Sign in
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>
