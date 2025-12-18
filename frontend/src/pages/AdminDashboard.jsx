@@ -18,11 +18,19 @@ const AdminDashboard = () => {
         adminAPI.getStats(),
         adminAPI.getPendingHelpers(),
       ]);
+
       setStats(statsRes.data);
-      setPendingHelpers(helpersRes.data);
+
+      // ✅ Normalize helpers response (array safety)
+      const helpersArray = Array.isArray(helpersRes.data)
+        ? helpersRes.data
+        : helpersRes.data.helpers || [];
+
+      setPendingHelpers(helpersArray);
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch admin data:', err);
+      setPendingHelpers([]);
       setLoading(false);
     }
   };
@@ -64,7 +72,9 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Users</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_users || 0}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    {stats.total_users || 0}
+                  </p>
                 </div>
                 <div className="p-3 bg-blue-100 rounded-lg">
                   <Users size={32} className="text-blue-600" />
@@ -119,7 +129,9 @@ const AdminDashboard = () => {
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center space-x-3 mb-6">
             <BarChart size={24} className="text-gray-700" />
-            <h3 className="text-xl font-semibold text-gray-900">Pending Helper Verifications</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Pending Helper Verifications
+            </h3>
           </div>
 
           {pendingHelpers.length === 0 ? (
@@ -131,7 +143,7 @@ const AdminDashboard = () => {
             <div className="space-y-4">
               {pendingHelpers.map((helper) => (
                 <div
-                  key={helper.id}
+                  key={helper._id}
                   className="border border-gray-200 rounded-lg p-4 flex justify-between items-center hover:bg-gray-50 transition-colors"
                 >
                   <div>
@@ -139,11 +151,16 @@ const AdminDashboard = () => {
                     <p className="text-sm text-gray-600 mt-1">{helper.email}</p>
                     <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
                       <span>City: {helper.city}</span>
-                      <span>Skills: {helper.skills}</span>
+                      <span>
+                        Skills:{' '}
+                        {Array.isArray(helper.skills)
+                          ? helper.skills.join(', ')
+                          : helper.skills}
+                      </span>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleVerifyHelper(helper.id)}
+                    onClick={() => handleVerifyHelper(helper._id)}
                     className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                   >
                     <CheckCircle size={18} />
@@ -157,7 +174,9 @@ const AdminDashboard = () => {
 
         {stats && stats.requests_by_status && (
           <div className="bg-white rounded-xl shadow-md p-6 mt-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Requests by Status</h3>
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">
+              Requests by Status
+            </h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm font-medium text-yellow-800">Pending</p>

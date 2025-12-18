@@ -9,6 +9,9 @@ const api = axios.create({
   },
 });
 
+// =========================================================
+// REQUEST INTERCEPTOR – attach JWT
+// =========================================================
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -17,11 +20,12 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
+// =========================================================
+// RESPONSE INTERCEPTOR – handle auth errors
+// =========================================================
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -34,14 +38,21 @@ api.interceptors.response.use(
   }
 );
 
+// =========================================================
+// AUTH APIs
+// =========================================================
 export const authAPI = {
   signup: (data) => api.post('/auth/signup', data),
   signupHelper: (data) => api.post('/auth/signup/helper', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
-  toggleAvailability: () => api.patch('/auth/helper/availability'),
+  toggleAvailability: (data) =>
+    api.patch('/auth/helper/availability', data),
 };
 
+// =========================================================
+// REQUEST APIs
+// =========================================================
 export const requestsAPI = {
   create: (data) => api.post('/requests', data),
   getMy: () => api.get('/requests/my'),
@@ -50,15 +61,22 @@ export const requestsAPI = {
   complete: (id) => api.patch(`/requests/${id}/complete`),
 };
 
+// =========================================================
+// RATINGS APIs
+// =========================================================
 export const ratingsAPI = {
   create: (data) => api.post('/ratings', data),
   getMy: () => api.get('/ratings/my'),
 };
 
+// =========================================================
+// ADMIN APIs (FIXED – OPTION 1)
+// =========================================================
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
   getPendingHelpers: () => api.get('/admin/helpers/pending'),
   verifyHelper: (id) => api.patch(`/admin/helpers/${id}/verify`),
 };
+
 
 export default api;

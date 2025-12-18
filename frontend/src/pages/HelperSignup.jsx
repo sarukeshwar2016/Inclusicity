@@ -10,7 +10,11 @@ const HelperSignup = () => {
     password: '',
     city: '',
     skills: '',
+    age: 18,
+    phone: '0000000000',
+    ngo_id: 'ngo_12345',
   });
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -27,10 +31,21 @@ const HelperSignup = () => {
     setLoading(true);
 
     try {
-      await signup(formData, true);
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        city: formData.city,
+        age: Number(formData.age),
+        phone: formData.phone,
+        ngo_id: formData.ngo_id,
+        skills: formData.skills.split(',').map((s) => s.trim()),
+      };
+
+      await signup(payload, true);
       navigate('/helper/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Signup failed. Please try again.');
+      setError(err.response?.data?.error || 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -108,7 +123,7 @@ const HelperSignup = () => {
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="How can you help?"
+                placeholder="How can you help? (comma separated)"
               />
             </div>
 

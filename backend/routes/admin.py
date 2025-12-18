@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, current_app
 from bson import ObjectId
-from datetime import datetime
 
 from routes.auth import jwt_required, role_required
 
@@ -32,16 +31,17 @@ def pending_helpers():
     result = []
     for h in helpers:
         result.append({
-            "helper_id": str(h["_id"]),
+            "_id": str(h["_id"]),          # ✅ frontend expects _id
             "name": h["name"],
             "email": h["email"],
             "city": h["city"],
-            "skills": h["skills"],
-            "ngo_id": h["ngo_id"],
-            "created_at": h["created_at"]
+            "skills": h.get("skills", []),
+            "ngo_id": h.get("ngo_id"),
+            "created_at": h.get("created_at")
         })
 
-    return jsonify({"pending_helpers": result}), 200
+    # ✅ frontend expects "helpers"
+    return jsonify({ "helpers": result }), 200
 
 
 # =========================================================
@@ -87,4 +87,5 @@ def platform_stats():
         "active_requests": db.requests.count_documents({"status": "accepted"})
     }
 
-    return jsonify({"stats": stats}), 200
+    # ✅ frontend expects stats directly
+    return jsonify(stats), 200
