@@ -12,28 +12,33 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
+      <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-blue-600">InclusiCity</h1>
+          {/* Logo */}
+          <div className="flex items-center space-x-2">
+            <h1 className="text-2xl font-bold">
+              <span className="text-indigo-600">Inclusi</span>
+              <span className="text-green-600">City</span>
+            </h1>
             {role && (
-              <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+              <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
                 {role.charAt(0).toUpperCase() + role.slice(1)}
               </span>
             )}
           </div>
 
+          {/* User info + Logout */}
           <div className="flex items-center space-x-4">
             {user && (
               <div className="flex items-center space-x-2 text-gray-700">
                 <User size={20} />
-                <span className="text-sm font-medium">{user.name || user.email}</span>
+                <span className="text-sm font-medium truncate max-w-xs">{user.name || user.email}</span>
               </div>
             )}
             <button
               onClick={handleLogout}
-              className="flex items-center space-x-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              className="flex items-center space-x-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
             >
               <LogOut size={18} />
               <span>Logout</span>
