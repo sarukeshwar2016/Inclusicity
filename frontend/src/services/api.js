@@ -24,16 +24,19 @@ api.interceptors.request.use(
 );
 
 // =========================================================
-// RESPONSE INTERCEPTOR – handle auth errors
+// RESPONSE INTERCEPTOR – ✅ FIXED
 // =========================================================
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    // ✅ Logout ONLY when token is invalid / expired
+    if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       window.location.href = '/login';
     }
+
+    // ❗ DO NOT logout on 403
     return Promise.reject(error);
   }
 );
@@ -46,9 +49,11 @@ export const authAPI = {
   signupHelper: (data) => api.post('/auth/signup/helper', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  getHelperMe: () => api.get('/auth/helper/me'),
   toggleAvailability: (data) =>
     api.patch('/auth/helper/availability', data),
 };
+
 
 // =========================================================
 // REQUEST APIs
@@ -70,13 +75,12 @@ export const ratingsAPI = {
 };
 
 // =========================================================
-// ADMIN APIs (FIXED – OPTION 1)
+// ADMIN APIs
 // =========================================================
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
   getPendingHelpers: () => api.get('/admin/helpers/pending'),
   verifyHelper: (id) => api.patch(`/admin/helpers/${id}/verify`),
 };
-
 
 export default api;

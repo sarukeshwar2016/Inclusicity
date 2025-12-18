@@ -237,6 +237,30 @@ def toggle_availability():
         "message": "Availability updated",
         "available": data["available"]
     }), 200
+@auth_bp.route("/helper/me", methods=["GET"])
+@jwt_required
+@role_required("helper")
+def helper_me():
+    db = get_db()
+
+    helper = db.helpers.find_one(
+        {"_id": ObjectId(request.user["user_id"])},
+        {
+            "_id": 0,
+            "available": 1,
+            "city": 1,
+            "verified": 1
+        }
+    )
+
+    if not helper:
+        return jsonify({"error": "Helper not found"}), 404
+
+    return jsonify({
+        "available": helper.get("available", False),
+        "city": helper.get("city"),
+        "verified": helper.get("verified", False)
+    }), 200
 
 
 # =========================================================

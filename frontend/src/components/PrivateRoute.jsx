@@ -12,13 +12,13 @@ const PrivateRoute = ({ children, allowedRoles }) => {
     );
   }
 
- // if (!isAuthenticated) {
- //   return <Navigate to="/login" replace />;
- // }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
- // if (allowedRoles && !allowedRoles.includes(role)) {
- //   return <Navigate to="/login" replace />;
- // }
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to="/login" replace />;
+  }
 
   return children;
 };
