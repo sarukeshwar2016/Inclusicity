@@ -1,13 +1,10 @@
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
 from bson import ObjectId
-from functools import wraps
 
-# Import decorators from auth
 from routes.auth import jwt_required, role_required
 
 requests_bp = Blueprint("requests", __name__)
-
 
 # =========================================================
 # DB helper
@@ -21,7 +18,7 @@ def get_db():
 
 
 # =========================================================
-# 1️⃣ USER CREATES A REQUEST (QUERY)
+# 1️⃣ USER CREATES REQUEST
 # =========================================================
 @requests_bp.route("", methods=["POST"])
 @jwt_required
@@ -30,15 +27,14 @@ def create_request():
     db = get_db()
     data = request.get_json() or {}
 
-    required = ["city", "need"]
-    if any(k not in data for k in required):
-        return jsonify({"error": "Missing required fields"}), 400
+    if not data.get("city") or not data.get("need"):
+        return jsonify({"error": "City and need required"}), 400
 
     new_request = {
         "user_id": ObjectId(request.user["user_id"]),
         "city": data["city"],
         "need": data["need"],
-        "status": "pending",          # pending | accepted | completed | cancelled
+        "status": "pending",          # pending | accepted | completed
         "helper_id": None,
         "created_at": datetime.utcnow()
     }
@@ -46,13 +42,13 @@ def create_request():
     result = db.requests.insert_one(new_request)
 
     return jsonify({
-        "message": "Request created successfully",
+        "message": "Request created",
         "request_id": str(result.inserted_id)
     }), 201
 
 
 # =========================================================
-# 2️⃣ HELPER VIEWS AVAILABLE REQUESTS (CITY-BASED)
+# 2️⃣ HELPER – VIEW AVAILABLE REQUESTS (WITH USER NAME)
 # =========================================================
 @requests_bp.route("/available", methods=["GET"])
 @jwt_required
@@ -67,27 +63,28 @@ def view_available_requests():
     if not helper or not helper.get("available"):
         return jsonify({"error": "Helper not available"}), 403
 
-    requests_cursor = db.requests.find({
+    cursor = db.requests.find({
         "city": helper["city"],
         "status": "pending"
     })
 
     results = []
-    for r in requests_cursor:
+    for r in cursor:
+        user = db.users.find_one({"_id": r["user_id"]})
+
         results.append({
             "request_id": str(r["_id"]),
             "city": r["city"],
             "need": r["need"],
+            "user_name": user["name"] if user else "Unknown",
             "created_at": r["created_at"]
         })
 
-    return jsonify({
-        "available_requests": results
-    }), 200
+    return jsonify({"available_requests": results}), 200
 
 
 # =========================================================
-# 3️⃣ HELPER ACCEPTS A REQUEST
+# 3️⃣ HELPER ACCEPTS REQUEST
 # =========================================================
 @requests_bp.route("/<request_id>/accept", methods=["PATCH"])
 @jwt_required
@@ -107,7 +104,7 @@ def accept_request(request_id):
     })
 
     if not req:
-        return jsonify({"error": "Request not found or already taken"}), 404
+        return jsonify({"error": "Request not found"}), 404
 
     db.requests.update_one(
         {"_id": req["_id"]},
@@ -120,7 +117,7 @@ def accept_request(request_id):
         }
     )
 
-    # Optional: mark helper unavailable
+    # Helper becomes unavailable
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {"available": False}}
@@ -145,18 +142,32 @@ def my_requests():
         cursor = db.requests.find({"helper_id": user_id})
 
     results = []
+
     for r in cursor:
+        # 🔹 Check if rated
+        is_rated = db.ratings.find_one({"request_id": r["_id"]}) is not None
+
+        # 🔹 Helper name (for user dashboard)
+        helper_name = None
+        if r.get("helper_id"):
+            helper = db.helpers.find_one({"_id": r["helper_id"]})
+            helper_name = helper["name"] if helper else None
+
         results.append({
             "request_id": str(r["_id"]),
             "city": r["city"],
             "need": r["need"],
             "status": r["status"],
+            "is_rated": is_rated,          # ✅ IMPORTANT
+            "helper_name": helper_name,    # ✅ IMPORTANT
             "created_at": r["created_at"]
         })
 
     return jsonify({"requests": results}), 200
+
+
 # =========================================================
-# 5️⃣ HELPER COMPLETES A REQUEST
+# 5️⃣ HELPER COMPLETES REQUEST
 # =========================================================
 @requests_bp.route("/<request_id>/complete", methods=["PATCH"])
 @jwt_required
@@ -173,11 +184,8 @@ def complete_request(request_id):
     })
 
     if not req:
-        return jsonify({
-            "error": "Request not found or not assigned to you"
-        }), 404
+        return jsonify({"error": "Request not found"}), 404
 
-    # Mark request as completed
     db.requests.update_one(
         {"_id": req["_id"]},
         {
@@ -188,12 +196,10 @@ def complete_request(request_id):
         }
     )
 
-    # Make helper available again
+    # Helper becomes available again
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {"available": True}}
     )
 
-    return jsonify({
-        "message": "Request completed successfully"
-    }), 200
+    return jsonify({"message": "Request completed"}), 200
