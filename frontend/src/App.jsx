@@ -3,28 +3,31 @@ import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 
 // Public Pages
-import HomePage from './pages/HomePage';       // ← NEW: Public landing page
+import HomePage from './pages/HomePage';
 import Login from './pages/Login';
 import UserSignup from './pages/UserSignup';
 import HelperSignup from './pages/HelperSignup';
 
-// Protected Dashboards
+// Dashboards
 import UserDashboard from './pages/UserDashboard';
 import HelperDashboard from './pages/HelperDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+
+// ✅ MAP PAGE (IMPORT WAS MISSING)
+import UserMap from './pages/UserMap';
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />                    {/* ← Now shows InclusiCity homepage */}
+          {/* ================= PUBLIC ROUTES ================= */}
+          <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<UserSignup />} />            {/* User signup */}
-          <Route path="/signup/helper" element={<HelperSignup />} />   {/* Helper signup */}
+          <Route path="/signup" element={<UserSignup />} />
+          <Route path="/signup/helper" element={<HelperSignup />} />
 
-          {/* Protected Routes */}
+          {/* ================= USER ROUTES ================= */}
           <Route
             path="/user/dashboard"
             element={
@@ -35,6 +38,16 @@ function App() {
           />
 
           <Route
+            path="/user/map"
+            element={
+              <PrivateRoute allowedRoles={['user']}>
+                <UserMap />
+              </PrivateRoute>
+            }
+          />
+
+          {/* ================= HELPER ROUTES ================= */}
+          <Route
             path="/helper/dashboard"
             element={
               <PrivateRoute allowedRoles={['helper']}>
@@ -43,6 +56,7 @@ function App() {
             }
           />
 
+          {/* ================= ADMIN ROUTES ================= */}
           <Route
             path="/admin/dashboard"
             element={
@@ -52,7 +66,7 @@ function App() {
             }
           />
 
-          {/* Catch-all: redirect unknown paths to homepage or login */}
+          {/* ================= FALLBACK ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
