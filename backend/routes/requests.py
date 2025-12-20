@@ -18,7 +18,7 @@ def get_db():
 
 
 # =========================================================
-# 1️⃣ USER CREATES REQUEST
+# 1️⃣ USER CREATES REQUEST (CITY + PICKUP + DESTINATION)
 # =========================================================
 @requests_bp.route("", methods=["POST"])
 @jwt_required
@@ -27,14 +27,27 @@ def create_request():
     db = get_db()
     data = request.get_json() or {}
 
-    if not data.get("city") or not data.get("need"):
-        return jsonify({"error": "City and need required"}), 400
+    required = [
+        "city",
+        "pickup_address",
+        "destination_address",
+        "need",
+        "phone"
+    ]
+
+    if any(not data.get(k) for k in required):
+        return jsonify({
+            "error": "city, pickup_address, destination_address, need and phone are required"
+        }), 400
 
     new_request = {
         "user_id": ObjectId(request.user["user_id"]),
         "city": data["city"],
+        "pickup_address": data["pickup_address"],
+        "destination_address": data["destination_address"],
         "need": data["need"],
-        "status": "pending",          # pending | accepted | completed
+        "phone": data["phone"],
+        "status": "pending",              # pending | accepted | completed
         "helper_id": None,
         "created_at": datetime.utcnow()
     }
@@ -48,7 +61,7 @@ def create_request():
 
 
 # =========================================================
-# 2️⃣ HELPER – VIEW AVAILABLE REQUESTS (WITH USER NAME)
+# 2️⃣ HELPER – VIEW AVAILABLE REQUESTS (WITH USER + ADDRESS)
 # =========================================================
 @requests_bp.route("/available", methods=["GET"])
 @jwt_required
@@ -75,7 +88,10 @@ def view_available_requests():
         results.append({
             "request_id": str(r["_id"]),
             "city": r["city"],
+            "pickup_address": r.get("pickup_address"),
+            "destination_address": r.get("destination_address"),
             "need": r["need"],
+            "phone": r.get("phone"),
             "user_name": user["name"] if user else "Unknown",
             "created_at": r["created_at"]
         })
@@ -117,7 +133,6 @@ def accept_request(request_id):
         }
     )
 
-    # Helper becomes unavailable
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {"available": False}}
@@ -136,18 +151,16 @@ def my_requests():
     role = request.user["role"]
     user_id = ObjectId(request.user["user_id"])
 
-    if role == "user":
-        cursor = db.requests.find({"user_id": user_id})
-    else:
-        cursor = db.requests.find({"helper_id": user_id})
+    cursor = (
+        db.requests.find({"user_id": user_id})
+        if role == "user"
+        else db.requests.find({"helper_id": user_id})
+    )
 
     results = []
-
     for r in cursor:
-        # 🔹 Check if rated
         is_rated = db.ratings.find_one({"request_id": r["_id"]}) is not None
 
-        # 🔹 Helper name (for user dashboard)
         helper_name = None
         if r.get("helper_id"):
             helper = db.helpers.find_one({"_id": r["helper_id"]})
@@ -156,10 +169,13 @@ def my_requests():
         results.append({
             "request_id": str(r["_id"]),
             "city": r["city"],
+            "pickup_address": r.get("pickup_address"),
+            "destination_address": r.get("destination_address"),
             "need": r["need"],
+            "phone": r.get("phone"),
             "status": r["status"],
-            "is_rated": is_rated,          # ✅ IMPORTANT
-            "helper_name": helper_name,    # ✅ IMPORTANT
+            "is_rated": is_rated,
+            "helper_name": helper_name,
             "created_at": r["created_at"]
         })
 
@@ -196,7 +212,6 @@ def complete_request(request_id):
         }
     )
 
-    # Helper becomes available again
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {"available": True}}

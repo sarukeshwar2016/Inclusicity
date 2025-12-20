@@ -227,50 +227,97 @@ const UserDashboard = () => {
           </div>
         </div>
       </div>
-
       {/* CREATE REQUEST MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6 relative">
-            <button
-              onClick={() => setShowModal(false)}
-              className="absolute top-4 right-4 text-gray-400"
-            >
-              <X size={20} />
-            </button>
+{showModal && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl w-full max-w-md p-6 relative">
+      <button
+        onClick={() => setShowModal(false)}
+        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+      >
+        <X size={20} />
+      </button>
 
-            <h3 className="text-xl font-semibold mb-4">Create New Request</h3>
+      <h3 className="text-xl font-semibold mb-4">Create New Request</h3>
 
-            <form onSubmit={handleCreateRequest} className="space-y-4">
-              <input
-                type="text"
-                placeholder="City"
-                className="w-full px-4 py-2 border rounded-lg"
-                value={newRequest.city}
-                onChange={(e) =>
-                  setNewRequest({ ...newRequest, city: e.target.value })
-                }
-                required
-              />
+      <form onSubmit={handleCreateRequest} className="space-y-4">
+        {/* CITY */}
+        <input
+          type="text"
+          placeholder="City"
+          className="w-full px-4 py-2 border rounded-lg"
+          value={newRequest.city}
+          onChange={(e) =>
+            setNewRequest({ ...newRequest, city: e.target.value })
+          }
+          required
+        />
 
-              <textarea
-                placeholder="Describe your need"
-                rows="3"
-                className="w-full px-4 py-2 border rounded-lg"
-                value={newRequest.need}
-                onChange={(e) =>
-                  setNewRequest({ ...newRequest, need: e.target.value })
-                }
-                required
-              />
+        {/* PICKUP ADDRESS */}
+        <input
+          type="text"
+          placeholder="Pickup Address"
+          className="w-full px-4 py-2 border rounded-lg"
+          value={newRequest.pickup_address}
+          onChange={(e) =>
+            setNewRequest({
+              ...newRequest,
+              pickup_address: e.target.value,
+            })
+          }
+          required
+        />
 
-              <button className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg">
-                Submit Request
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+        {/* DESTINATION ADDRESS */}
+        <input
+          type="text"
+          placeholder="Destination Address"
+          className="w-full px-4 py-2 border rounded-lg"
+          value={newRequest.destination_address}
+          onChange={(e) =>
+            setNewRequest({
+              ...newRequest,
+              destination_address: e.target.value,
+            })
+          }
+          required
+        />
+
+        {/* PHONE */}
+        <input
+          type="tel"
+          placeholder="Phone Number"
+          className="w-full px-4 py-2 border rounded-lg"
+          value={newRequest.phone}
+          onChange={(e) =>
+            setNewRequest({ ...newRequest, phone: e.target.value })
+          }
+          required
+        />
+
+        {/* NEED */}
+        <textarea
+          placeholder="Reason / Need (e.g. Hospital visit)"
+          rows="3"
+          className="w-full px-4 py-2 border rounded-lg"
+          value={newRequest.need}
+          onChange={(e) =>
+            setNewRequest({ ...newRequest, need: e.target.value })
+          }
+          required
+        />
+
+        <button
+          type="submit"
+          className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          Submit Request
+        </button>
+      </form>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };

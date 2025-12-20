@@ -161,48 +161,70 @@ const HelperDashboard = () => {
         </div>
 
         {/* REQUEST LIST */}
-        <div className="space-y-4">
-          {requests.length === 0 ? (
-            <div className="bg-white p-12 text-center rounded-xl shadow">
-              No requests
-            </div>
-          ) : (
-            requests.map(req => (
-              <div key={req.request_id} className="bg-white p-6 rounded-xl shadow">
-                <div className="flex items-center gap-3 mb-1">
-                  <MapPin className="text-blue-600" />
-                  <h3 className="text-xl font-semibold">{req.city}</h3>
-                </div>
-
-                {req.user_name && (
-                  <p className="text-sm text-gray-500 mb-1">
-                    Requested by: <b>{req.user_name}</b>
-                  </p>
-                )}
-
-                <p className="text-gray-700 mb-4">{req.need}</p>
-
-                {req.status === 'pending' && (
-                  <button
-                    onClick={() => handleAcceptRequest(req.request_id)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Accept
-                  </button>
-                )}
-
-                {req.status === 'accepted' && (
-                  <button
-                    onClick={() => handleCompleteRequest(req.request_id)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Complete Ride
-                  </button>
-                )}
-              </div>
-            ))
-          )}
+<div className="space-y-4">
+  {requests.length === 0 ? (
+    <div className="bg-white p-12 text-center rounded-xl shadow">
+      No requests
+    </div>
+  ) : (
+    requests.map((req) => (
+      <div
+        key={req.request_id}
+        className="bg-white p-6 rounded-xl shadow"
+      >
+        {/* CITY */}
+        <div className="flex items-center gap-3 mb-1">
+          <MapPin className="text-blue-600" />
+          <h3 className="text-xl font-semibold">{req.city}</h3>
         </div>
+
+        {/* USER NAME (only for available requests) */}
+        {req.user_name && (
+          <p className="text-sm text-gray-500 mb-1">
+            Requested by: <b>{req.user_name}</b>
+          </p>
+        )}
+
+        {/* PICKUP ADDRESS */}
+        {req.pickup_address && (
+          <p className="text-sm text-gray-500">
+            Pickup: {req.pickup_address}
+          </p>
+        )}
+
+        {/* DESTINATION ADDRESS */}
+        {req.destination_address && (
+          <p className="text-sm text-gray-500 mb-2">
+            Destination: {req.destination_address}
+          </p>
+        )}
+
+        {/* NEED */}
+        <p className="text-gray-700 mb-4">{req.need}</p>
+
+        {/* ACTION BUTTONS */}
+        {req.status === 'pending' && (
+          <button
+            onClick={() => handleAcceptRequest(req.request_id)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Accept
+          </button>
+        )}
+
+        {req.status === 'accepted' && (
+          <button
+            onClick={() => handleCompleteRequest(req.request_id)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          >
+            Complete Ride
+          </button>
+        )}
+      </div>
+    ))
+  )}
+</div>
+
       </div>
     </div>
   );
