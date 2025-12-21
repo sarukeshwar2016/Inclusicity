@@ -8,13 +8,13 @@ export const AuthProvider = ({ children }) => {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // =========================================================
+  // RESTORE SESSION (ON PAGE REFRESH)
+  // =========================================================
   useEffect(() => {
     restoreSession();
   }, []);
 
-  // =========================================================
-  // RESTORE SESSION (silent validation)
-  // =========================================================
   const restoreSession = async () => {
     const token = localStorage.getItem('token');
     const savedRole = localStorage.getItem('role');
@@ -32,20 +32,17 @@ export const AuthProvider = ({ children }) => {
           ? await authAPI.getHelperMe()
           : await authAPI.getMe();
 
-      setUser(res.data);
-    } catch (err) {
-      const status = err.response?.status;
-      const msg = err.response?.data?.error;
-
-      if (
-        status === 401 &&
-        (msg === 'Invalid token' || msg === 'Token expired')
-      ) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        setUser(null);
-        setRole(null);
+      // Normalize response
+      if (res.data?.user) {
+        setUser(res.data.user); // admin & user
+      } else {
+        setUser(res.data); // helper
       }
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      setUser(null);
+      setRole(null);
     } finally {
       setLoading(false);
     }
@@ -62,22 +59,30 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('role', role);
     setRole(role);
 
-    await restoreSession();
+    try {
+      const userRes =
+        role === 'helper'
+          ? await authAPI.getHelperMe()
+          : await authAPI.getMe();
+
+      if (userRes.data?.user) {
+        setUser(userRes.data.user);
+      } else {
+        setUser(userRes.data);
+      }
+    } catch {
+      setUser(null);
+    }
+
     return role;
   };
 
   // =========================================================
-  // SIGNUP (OPTION A – NO AUTO LOGIN)
+  // SIGNUP
   // =========================================================
   const signup = async (data, isHelper = false) => {
-    if (isHelper) {
-      await authAPI.signupHelper(data);
-    } else {
-      await authAPI.signup(data);
-    }
-    // ❗ DO NOT store token
-    // ❗ DO NOT set user
-    // just return success
+    if (isHelper) await authAPI.signupHelper(data);
+    else await authAPI.signup(data);
     return true;
   };
 
@@ -97,9 +102,9 @@ export const AuthProvider = ({ children }) => {
     role,
     loading,
     login,
-    signup, // ✅ NOW AVAILABLE
+    signup,
     logout,
-    isAuthenticated: !!localStorage.getItem('token'),
+    isAuthenticated: !!role, // 🔥 FIX IS HERE
   };
 
   return (
@@ -116,3 +121,4 @@ export const useAuth = () => {
   }
   return context;
 };
+localStorage.clear();

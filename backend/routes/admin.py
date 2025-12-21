@@ -95,23 +95,33 @@ def verify_helper_admin(helper_id):
     if helper.get("verified"):
         return jsonify({"message": "Helper already verified"}), 200
 
+    # Mark helper as verified
     db.helpers.update_one(
         {"_id": helper["_id"]},
         {"$set": {"verified": True}}
     )
 
-    # 🔔 Send verification email
-    print("📧 SENDING EMAIL TO:", helper["email"])
-    success = send_helper_verified_email(
-        to_email=helper["email"],
-        helper_name=helper["name"]
-    )
-    print("📧 EMAIL SENT STATUS:", success)
+    # 🔔 Send verification email (ASYNC with fallback)
+    try:
+        from utils.email_tasks import send_helper_verified_email_task
+
+        send_helper_verified_email_task.delay(
+            helper["email"],
+            helper["name"]
+        )
+        print("📨 Email task queued via Celery")
+
+    except Exception as e:
+        print("⚠️ Celery failed, sending email synchronously:", e)
+
+        send_helper_verified_email(
+            to_email=helper["email"],
+            helper_name=helper["name"]
+        )
 
     return jsonify({
-        "message": "Helper verified and email sent"
+        "message": "Helper verified successfully"
     }), 200
-
 
 # =========================================================
 # 3️⃣ PLATFORM STATS
