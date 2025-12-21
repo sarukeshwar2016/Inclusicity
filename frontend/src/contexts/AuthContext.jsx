@@ -37,7 +37,6 @@ export const AuthProvider = ({ children }) => {
       const status = err.response?.status;
       const msg = err.response?.data?.error;
 
-      // 🔥 logout ONLY for real auth failure
       if (
         status === 401 &&
         (msg === 'Invalid token' || msg === 'Token expired')
@@ -47,7 +46,6 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setRole(null);
       }
-      // otherwise: ignore error, DO NOT logout
     } finally {
       setLoading(false);
     }
@@ -64,9 +62,23 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('role', role);
     setRole(role);
 
-    // fetch user AFTER login
     await restoreSession();
     return role;
+  };
+
+  // =========================================================
+  // SIGNUP (OPTION A – NO AUTO LOGIN)
+  // =========================================================
+  const signup = async (data, isHelper = false) => {
+    if (isHelper) {
+      await authAPI.signupHelper(data);
+    } else {
+      await authAPI.signup(data);
+    }
+    // ❗ DO NOT store token
+    // ❗ DO NOT set user
+    // just return success
+    return true;
   };
 
   // =========================================================
@@ -85,8 +97,9 @@ export const AuthProvider = ({ children }) => {
     role,
     loading,
     login,
+    signup, // ✅ NOW AVAILABLE
     logout,
-    isAuthenticated: !!localStorage.getItem('token'), // ✅ IMPORTANT
+    isAuthenticated: !!localStorage.getItem('token'),
   };
 
   return (
