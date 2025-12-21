@@ -263,26 +263,6 @@ def helper_me():
     }), 200
 
 
-# =========================================================
-# VERIFY HELPER (ADMIN / NGO)
-# =========================================================
-@auth_bp.route("/helpers/<identifier>/verify", methods=["PATCH"])
-def verify_helper(identifier):
-    db = get_db()
-
-    helper = db.helpers.find_one({"email": identifier})
-    if not helper:
-        try:
-            helper = db.helpers.find_one({"_id": ObjectId(identifier)})
-        except:
-            return jsonify({"error": "Helper not found"}), 404
-
-    db.helpers.update_one(
-        {"_id": helper["_id"]},
-        {"$set": {"verified": True}}
-    )
-
-    return jsonify({"message": "Helper verified"}), 200
 
 
 # =========================================================

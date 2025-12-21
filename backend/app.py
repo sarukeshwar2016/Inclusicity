@@ -3,24 +3,36 @@ from flask_pymongo import PyMongo
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 
 app = Flask(__name__)
 
-# ✅ ENABLE CORS
+# CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# ✅ JWT CONFIG
-app.config["JWT_SECRET_KEY"] = os.getenv(
-    "JWT_SECRET_KEY",
-    "super-secret-key-change-this"
-)
+# JWT
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 app.config["JWT_ALGORITHM"] = "HS256"
 app.config["JWT_EXPIRY_HOURS"] = 24
+
+# EMAIL (SMTP)
+app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
+app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
 
 # MongoDB
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 mongo = PyMongo(app)
+
+print(
+    "MAIL CONFIG:",
+    app.config["MAIL_SERVER"],
+    app.config["MAIL_PORT"],
+    app.config["MAIL_USERNAME"],
+    bool(app.config["MAIL_PASSWORD"])
+)
 
 # Register Blueprints
 from routes.auth import auth_bp

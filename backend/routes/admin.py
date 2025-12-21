@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, current_app
 from bson import ObjectId
-
+from utils.email import send_helper_verified_email
 from routes.auth import jwt_required, role_required
 
 admin_bp = Blueprint("admin", __name__)
@@ -65,7 +65,18 @@ def verify_helper_admin(helper_id):
         {"$set": {"verified": True}}
     )
 
-    return jsonify({"message": "Helper verified successfully"}), 200
+    # 🔔 SEND EMAIL HERE (THIS IS THE FIX)
+    print("📧 SENDING EMAIL TO:", helper["email"])
+    success = send_helper_verified_email(
+        to_email=helper["email"],
+        helper_name=helper["name"]
+    )
+    print("📧 EMAIL SENT STATUS:", success)
+
+    return jsonify({
+        "message": "Helper verified and email sent"
+    }), 200
+
 
 
 # =========================================================
