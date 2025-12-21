@@ -1,11 +1,19 @@
 from flask import Blueprint, request, jsonify, current_app
+from flask_restx import Namespace, Resource, fields
 from bson import ObjectId
 from datetime import datetime
 
 from routes.auth import jwt_required, role_required
 
+# =========================================================
+# Blueprint & Swagger Namespace
+# =========================================================
 ratings_bp = Blueprint("ratings", __name__)
 
+ratings_ns = Namespace(
+    "ratings",
+    description="Ratings & reviews for helpers"
+)
 
 # =========================================================
 # DB helper
@@ -16,6 +24,28 @@ def get_db():
         return pymongo_ext.db
     from app import mongo
     return mongo.db
+
+
+# =========================================================
+# Swagger Models
+# =========================================================
+rate_helper_model = ratings_ns.model("RateHelper", {
+    "request_id": fields.String(required=True),
+    "rating": fields.Integer(required=True, min=1, max=5),
+    "feedback": fields.String
+})
+
+rating_item_model = ratings_ns.model("RatingItem", {
+    "rating": fields.Integer,
+    "feedback": fields.String,
+    "created_at": fields.String
+})
+
+my_ratings_response_model = ratings_ns.model("MyRatingsResponse", {
+    "total_reviews": fields.Integer,
+    "avg_rating": fields.Float,
+    "ratings": fields.List(fields.Nested(rating_item_model))
+})
 
 
 # =========================================================
@@ -92,6 +122,7 @@ def rate_helper():
         "avg_rating": avg_rating
     }), 201
 
+
 # =========================================================
 # HELPER VIEWS THEIR OWN RATINGS
 # =========================================================
@@ -102,7 +133,6 @@ def view_my_ratings():
     db = get_db()
 
     helper_id = ObjectId(request.user["user_id"])
-
     ratings_cursor = db.ratings.find({"helper_id": helper_id})
 
     ratings = []
@@ -123,3 +153,22 @@ def view_my_ratings():
         "avg_rating": avg_rating,
         "ratings": ratings
     }), 200
+
+
+# =========================================================
+# Swagger Wrapper Routes (NO LOGIC DUPLICATION)
+# =========================================================
+@ratings_ns.route("")
+class SwaggerRateHelper(Resource):
+    @ratings_ns.expect(rate_helper_model)
+    @ratings_ns.doc(security="Bearer")
+    def post(self):
+        return rate_helper()
+
+
+@ratings_ns.route("/my")
+class SwaggerMyRatings(Resource):
+    @ratings_ns.doc(security="Bearer")
+    @ratings_ns.marshal_with(my_ratings_response_model)
+    def get(self):
+        return view_my_ratings()

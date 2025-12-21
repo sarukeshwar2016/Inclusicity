@@ -1,11 +1,20 @@
 import jwt
 from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
+from flask_restx import Namespace, Resource, fields
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from bson import ObjectId
 
+# =========================================================
+# Blueprint & Swagger Namespace
+# =========================================================
 auth_bp = Blueprint("auth", __name__)
+
+auth_ns = Namespace(
+    "auth",
+    description="Authentication & authorization APIs"
+)
 
 # =========================================================
 # DB helper
@@ -49,7 +58,7 @@ def jwt_required(f):
             return jsonify({"error": "Authorization token missing"}), 401
 
         try:
-            token = auth_header.split(" ")[1]  # Bearer <token>
+            token = auth_header.split(" ")[1]
             request.user = decode_jwt(token)
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
@@ -77,6 +86,42 @@ def role_required(required_role):
             return f(*args, **kwargs)
         return wrapper
     return decorator
+
+
+# =========================================================
+# Swagger Models
+# =========================================================
+user_signup_model = auth_ns.model("UserSignup", {
+    "name": fields.String(required=True),
+    "email": fields.String(required=True),
+    "password": fields.String(required=True),
+    "age": fields.Integer(required=True),
+    "city": fields.String,
+    "phone": fields.String,
+    "mobility_needs": fields.String
+})
+
+helper_signup_model = auth_ns.model("HelperSignup", {
+    "name": fields.String(required=True),
+    "email": fields.String(required=True),
+    "password": fields.String(required=True),
+    "age": fields.Integer(required=True),
+    "city": fields.String(required=True),
+    "phone": fields.String(required=True),
+    "ngo_id": fields.String(required=True),
+    "skills": fields.List(fields.String, required=True),
+    "experience": fields.String,
+    "gender": fields.String
+})
+
+login_model = auth_ns.model("Login", {
+    "email": fields.String(required=True),
+    "password": fields.String(required=True)
+})
+
+availability_model = auth_ns.model("Availability", {
+    "available": fields.Boolean(required=True)
+})
 
 
 # =========================================================
@@ -170,7 +215,7 @@ def signup_helper():
 
 
 # =========================================================
-# LOGIN (USER + HELPER)
+# LOGIN
 # =========================================================
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -186,11 +231,10 @@ def login():
     account = db.users.find_one({"email": email})
 
     if account:
-        role = account.get("role", "user")
+        role = "user"
     else:
         account = db.helpers.find_one({"email": email})
         role = "helper"
-
 
     if not account or not check_password_hash(account["password"], password):
         return jsonify({"error": "Invalid credentials"}), 401
@@ -210,8 +254,9 @@ def login():
         "role": role
     }), 200
 
+
 # =========================================================
-# HELPER AVAILABILITY TOGGLE
+# HELPER AVAILABILITY
 # =========================================================
 @auth_bp.route("/helper/availability", methods=["PATCH"])
 @jwt_required
@@ -220,10 +265,7 @@ def toggle_availability():
     db = get_db()
     data = request.get_json() or {}
 
-    if "available" not in data:
-        return jsonify({"error": "Availability field required"}), 400
-
-    if not isinstance(data["available"], bool):
+    if "available" not in data or not isinstance(data["available"], bool):
         return jsonify({"error": "Availability must be true or false"}), 400
 
     helper_id = ObjectId(request.user["user_id"])
@@ -237,6 +279,8 @@ def toggle_availability():
         "message": "Availability updated",
         "available": data["available"]
     }), 200
+
+
 @auth_bp.route("/helper/me", methods=["GET"])
 @jwt_required
 @role_required("helper")
@@ -245,31 +289,18 @@ def helper_me():
 
     helper = db.helpers.find_one(
         {"_id": ObjectId(request.user["user_id"])},
-        {
-            "_id": 0,
-            "available": 1,
-            "city": 1,
-            "verified": 1
-        }
+        {"_id": 0, "available": 1, "city": 1, "verified": 1}
     )
 
     if not helper:
         return jsonify({"error": "Helper not found"}), 404
 
-    return jsonify({
-        "available": helper.get("available", False),
-        "city": helper.get("city"),
-        "verified": helper.get("verified", False)
-    }), 200
-
-
+    return jsonify(helper), 200
 
 
 # =========================================================
 # PROTECTED ROUTES
 # =========================================================
-
-# Any logged-in user
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required
 def me():
@@ -279,23 +310,47 @@ def me():
     }), 200
 
 
-# USER-only route
-@auth_bp.route("/user/dashboard", methods=["GET"])
-@jwt_required
-@role_required("user")
-def user_dashboard():
-    return jsonify({
-        "message": "Welcome USER",
-        "user": request.user
-    }), 200
+# =========================================================
+# Swagger Wrapper Routes (NO LOGIC DUPLICATION)
+# =========================================================
+@auth_ns.route("/signup")
+class SwaggerUserSignup(Resource):
+    @auth_ns.expect(user_signup_model)
+    def post(self):
+        return signup_user()
 
 
-# HELPER-only route
-@auth_bp.route("/helper/dashboard", methods=["GET"])
-@jwt_required
-@role_required("helper")
-def helper_dashboard():
-    return jsonify({
-        "message": "Welcome HELPER",
-        "user": request.user
-    }), 200
+@auth_ns.route("/signup/helper")
+class SwaggerHelperSignup(Resource):
+    @auth_ns.expect(helper_signup_model)
+    def post(self):
+        return signup_helper()
+
+
+@auth_ns.route("/login")
+class SwaggerLogin(Resource):
+    @auth_ns.expect(login_model)
+    def post(self):
+        return login()
+
+
+@auth_ns.route("/helper/availability")
+class SwaggerHelperAvailability(Resource):
+    @auth_ns.expect(availability_model)
+    @auth_ns.doc(security="Bearer")
+    def patch(self):
+        return toggle_availability()
+
+
+@auth_ns.route("/helper/me")
+class SwaggerHelperMe(Resource):
+    @auth_ns.doc(security="Bearer")
+    def get(self):
+        return helper_me()
+
+
+@auth_ns.route("/me")
+class SwaggerMe(Resource):
+    @auth_ns.doc(security="Bearer")
+    def get(self):
+        return me()

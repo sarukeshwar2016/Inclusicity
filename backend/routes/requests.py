@@ -1,10 +1,19 @@
 from flask import Blueprint, request, jsonify, current_app
+from flask_restx import Namespace, Resource, fields
 from datetime import datetime
 from bson import ObjectId
 
 from routes.auth import jwt_required, role_required
 
+# =========================================================
+# Blueprint & Swagger Namespace
+# =========================================================
 requests_bp = Blueprint("requests", __name__)
+
+requests_ns = Namespace(
+    "requests",
+    description="Help request creation, assignment, and completion"
+)
 
 # =========================================================
 # DB helper
@@ -18,7 +27,51 @@ def get_db():
 
 
 # =========================================================
-# 1️⃣ USER CREATES REQUEST (CITY + PICKUP + DESTINATION)
+# Swagger Models
+# =========================================================
+create_request_model = requests_ns.model("CreateRequest", {
+    "city": fields.String(required=True),
+    "pickup_address": fields.String(required=True),
+    "destination_address": fields.String(required=True),
+    "need": fields.String(required=True),
+    "phone": fields.String(required=True)
+})
+
+request_item_model = requests_ns.model("RequestItem", {
+    "request_id": fields.String,
+    "city": fields.String,
+    "pickup_address": fields.String,
+    "destination_address": fields.String,
+    "need": fields.String,
+    "phone": fields.String,
+    "status": fields.String,
+    "is_rated": fields.Boolean,
+    "helper_name": fields.String,
+    "created_at": fields.String
+})
+
+available_request_item_model = requests_ns.model("AvailableRequestItem", {
+    "request_id": fields.String,
+    "city": fields.String,
+    "pickup_address": fields.String,
+    "destination_address": fields.String,
+    "need": fields.String,
+    "phone": fields.String,
+    "user_name": fields.String,
+    "created_at": fields.String
+})
+
+requests_list_response = requests_ns.model("RequestsListResponse", {
+    "requests": fields.List(fields.Nested(request_item_model))
+})
+
+available_requests_response = requests_ns.model("AvailableRequestsResponse", {
+    "available_requests": fields.List(fields.Nested(available_request_item_model))
+})
+
+
+# =========================================================
+# 1️⃣ USER CREATES REQUEST
 # =========================================================
 @requests_bp.route("", methods=["POST"])
 @jwt_required
@@ -47,7 +100,7 @@ def create_request():
         "destination_address": data["destination_address"],
         "need": data["need"],
         "phone": data["phone"],
-        "status": "pending",              # pending | accepted | completed
+        "status": "pending",
         "helper_id": None,
         "created_at": datetime.utcnow()
     }
@@ -61,7 +114,7 @@ def create_request():
 
 
 # =========================================================
-# 2️⃣ HELPER – VIEW AVAILABLE REQUESTS (WITH USER + ADDRESS)
+# 2️⃣ HELPER – VIEW AVAILABLE REQUESTS
 # =========================================================
 @requests_bp.route("/available", methods=["GET"])
 @jwt_required
@@ -218,3 +271,44 @@ def complete_request(request_id):
     )
 
     return jsonify({"message": "Request completed"}), 200
+
+
+# =========================================================
+# Swagger Wrapper Routes (NO LOGIC DUPLICATION)
+# =========================================================
+@requests_ns.route("")
+class SwaggerCreateRequest(Resource):
+    @requests_ns.expect(create_request_model)
+    @requests_ns.doc(security="Bearer")
+    def post(self):
+        return create_request()
+
+
+@requests_ns.route("/available")
+class SwaggerAvailableRequests(Resource):
+    @requests_ns.doc(security="Bearer")
+    @requests_ns.marshal_with(available_requests_response)
+    def get(self):
+        return view_available_requests()
+
+
+@requests_ns.route("/my")
+class SwaggerMyRequests(Resource):
+    @requests_ns.doc(security="Bearer")
+    @requests_ns.marshal_with(requests_list_response)
+    def get(self):
+        return my_requests()
+
+
+@requests_ns.route("/<string:request_id>/accept")
+class SwaggerAcceptRequest(Resource):
+    @requests_ns.doc(security="Bearer")
+    def patch(self, request_id):
+        return accept_request(request_id)
+
+
+@requests_ns.route("/<string:request_id>/complete")
+class SwaggerCompleteRequest(Resource):
+    @requests_ns.doc(security="Bearer")
+    def patch(self, request_id):
+        return complete_request(request_id)

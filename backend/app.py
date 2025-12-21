@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_pymongo import PyMongo
 from flask_cors import CORS
+from flask_restx import Api
 from dotenv import load_dotenv
 import os
 
@@ -34,7 +35,25 @@ print(
     bool(app.config["MAIL_PASSWORD"])
 )
 
-# Register Blueprints
+# -------------------- SWAGGER SETUP --------------------
+api = Api(
+    app,
+    title="InclusiCity API",
+    version="1.0",
+    description="Role-based accessibility assistance platform backend",
+    doc="/docs",   # Swagger UI
+    authorizations={
+        "Bearer": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Authorization"
+        }
+    },
+    security="Bearer"
+)
+# ------------------------------------------------------
+
+# Register Blueprints (unchanged)
 from routes.auth import auth_bp
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
@@ -46,6 +65,18 @@ app.register_blueprint(admin_bp, url_prefix="/admin")
 
 from routes.ratings import ratings_bp
 app.register_blueprint(ratings_bp, url_prefix="/ratings")
+
+from routes.auth import auth_ns
+api.add_namespace(auth_ns, path="/auth")
+
+from routes.admin import admin_ns
+api.add_namespace(admin_ns, path="/admin")
+
+from routes.ratings import ratings_ns
+api.add_namespace(ratings_ns, path="/ratings")
+
+from routes.requests import requests_ns
+api.add_namespace(requests_ns, path="/requests")
 
 @app.route('/')
 def home():
