@@ -198,6 +198,13 @@ const HelperDashboard = () => {
             Destination: {req.destination_address}
           </p>
         )}
+        {/* PHONE NUMBER */}
+{req.phone && (
+  <p className="text-sm text-gray-600 mb-2">
+    📞 Contact: <b>{req.phone}</b>
+  </p>
+)}
+
 
         {/* NEED */}
         <p className="text-gray-700 mb-4">{req.need}</p>

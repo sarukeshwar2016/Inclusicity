@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 const PrivateRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, role, loading } = useAuth();
 
+  // ⏳ Wait for auth resolution
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -12,13 +13,17 @@ const PrivateRoute = ({ children, allowedRoles }) => {
     );
   }
 
+  // 🔒 Not logged in → Login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
+  // 🚫 Logged in but wrong role → Home
   if (allowedRoles && !allowedRoles.includes(role)) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
+
+  // ✅ Authorized
   return children;
 };
 
