@@ -9,55 +9,69 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    restoreSession();
+  }, []);
+
+  // =========================================================
+  // RESTORE SESSION (silent validation)
+  // =========================================================
+  const restoreSession = async () => {
     const token = localStorage.getItem('token');
     const savedRole = localStorage.getItem('role');
 
-    if (token && savedRole) {
-      setRole(savedRole);
-      fetchCurrentUser();
-    } else {
+    if (!token || !savedRole) {
       setLoading(false);
+      return;
     }
-  }, []);
 
-  const fetchCurrentUser = async () => {
+    setRole(savedRole);
+
     try {
-      const response = await authAPI.getMe();
-      setUser(response.data);
+      const res =
+        savedRole === 'helper'
+          ? await authAPI.getHelperMe()
+          : await authAPI.getMe();
+
+      setUser(res.data);
+    } catch (err) {
+      const status = err.response?.status;
+      const msg = err.response?.data?.error;
+
+      // 🔥 logout ONLY for real auth failure
+      if (
+        status === 401 &&
+        (msg === 'Invalid token' || msg === 'Token expired')
+      ) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('role');
+        setUser(null);
+        setRole(null);
+      }
+      // otherwise: ignore error, DO NOT logout
+    } finally {
       setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-      logout();
     }
   };
 
+  // =========================================================
+  // LOGIN
+  // =========================================================
   const login = async (email, password) => {
-    const response = await authAPI.login({ email, password });
-    const { token, role } = response.data;
+    const res = await authAPI.login({ email, password });
+    const { token, role } = res.data;
 
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
     setRole(role);
 
-    await fetchCurrentUser();
+    // fetch user AFTER login
+    await restoreSession();
     return role;
   };
 
-  const signup = async (data, isHelper = false) => {
-    const response = isHelper
-      ? await authAPI.signupHelper(data)
-      : await authAPI.signup(data);
-
-    const { token, role } = response.data;
-
-    localStorage.setItem('token', token);
-    localStorage.setItem('role', role);
-    setRole(role);
-
-    await fetchCurrentUser();
-    return role;
-  };
-
+  // =========================================================
+  // LOGOUT
+  // =========================================================
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
@@ -71,12 +85,15 @@ export const AuthProvider = ({ children }) => {
     role,
     loading,
     login,
-    signup,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated: !!localStorage.getItem('token'), // ✅ IMPORTANT
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

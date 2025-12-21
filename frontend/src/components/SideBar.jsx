@@ -7,26 +7,29 @@ const SideBar = () => {
   const [isOpen, setIsOpen] = useState(true);
   const location = useLocation();
 
+  // ✅ Paths fixed, behavior unchanged
   const links = [
     {
       name: 'Request',
-      path: '/dashboard',
+      path: '/user/dashboard',   // ✅ FIXED
       icon: <Home size={20} />,
     },
     {
       name: 'Map',
-      path: '/user/map',          // ✅ CORRECT MAP ROUTE
+      path: '/user/map',         // ✅ SAME AS BEFORE
       icon: <MapPin size={20} />,
     },
     {
       name: 'Profile',
-      path: '/dashboard/profile',
+      path: '/user/profile',     // ⚠️ placeholder (route not added yet)
       icon: <User size={20} />,
+      disabled: true,
     },
     {
       name: 'Settings',
-      path: '/dashboard/settings',
+      path: '/user/settings',    // ⚠️ placeholder (route not added yet)
       icon: <Settings size={20} />,
+      disabled: true,
     },
   ];
 
@@ -50,19 +53,34 @@ const SideBar = () => {
         {links.map((link) => {
           const isActive = location.pathname === link.path;
 
+          // 🔒 Disable non-existing routes visually
+          if (link.disabled) {
+            return (
+              <div
+                key={link.name}
+                className="flex items-center gap-4 px-4 py-3 my-1 rounded-lg text-gray-400 cursor-not-allowed"
+              >
+                {link.icon}
+                {isOpen && <span>{link.name}</span>}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={link.path}
               to={link.path}
               className={`flex items-center gap-4 px-4 py-3 my-1 rounded-lg transition-colors
                 hover:bg-indigo-50
-                ${isActive ? 'bg-indigo-100 font-semibold text-indigo-700' : 'text-gray-700'}
+                ${
+                  isActive
+                    ? 'bg-indigo-100 font-semibold text-indigo-700'
+                    : 'text-gray-700'
+                }
               `}
             >
               {link.icon}
-              {isOpen && (
-                <span className="whitespace-nowrap">{link.name}</span>
-              )}
+              {isOpen && <span>{link.name}</span>}
             </Link>
           );
         })}

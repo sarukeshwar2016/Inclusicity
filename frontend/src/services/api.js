@@ -15,28 +15,41 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
 // =========================================================
-// RESPONSE INTERCEPTOR – ✅ FIXED
+// RESPONSE INTERCEPTOR – FINAL & SAFE
 // =========================================================
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // ✅ Logout ONLY when token is invalid / expired
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const message = error.response?.data?.error;
+
+    // ✅ Logout ONLY for real auth failure
+    if (
+      status === 401 &&
+      (message === 'Invalid token' || message === 'Token expired')
+    ) {
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       window.location.href = '/login';
     }
 
-    // ❗ DO NOT logout on 403
+    // ❌ DO NOT logout for:
+    // - validation errors
+    // - permission errors (403)
+    // - duplicate rating (409)
+    // - temporary backend issues
+
     return Promise.reject(error);
   }
 );
@@ -53,7 +66,6 @@ export const authAPI = {
   toggleAvailability: (data) =>
     api.patch('/auth/helper/availability', data),
 };
-
 
 // =========================================================
 // REQUEST APIs
