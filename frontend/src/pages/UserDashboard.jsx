@@ -227,7 +227,7 @@ const UserDashboard = () => {
           </div>
         </div>
       </div>
-      {/* CREATE REQUEST MODAL */}
+{/* CREATE REQUEST MODAL */}
 {showModal && (
   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
     <div className="bg-white rounded-xl w-full max-w-md p-6 relative">
@@ -241,6 +241,7 @@ const UserDashboard = () => {
       <h3 className="text-xl font-semibold mb-4">Create New Request</h3>
 
       <form onSubmit={handleCreateRequest} className="space-y-4">
+
         {/* CITY */}
         <input
           type="text"
@@ -307,6 +308,35 @@ const UserDashboard = () => {
           required
         />
 
+        {/* DATE & TIME */}
+        <div className="grid grid-cols-2 gap-4">
+          <input
+            type="date"
+            className="w-full px-4 py-2 border rounded-lg"
+            value={newRequest.needed_date}
+            onChange={(e) =>
+              setNewRequest({
+                ...newRequest,
+                needed_date: e.target.value,
+              })
+            }
+            required
+          />
+
+          <input
+            type="time"
+            className="w-full px-4 py-2 border rounded-lg"
+            value={newRequest.needed_time}
+            onChange={(e) =>
+              setNewRequest({
+                ...newRequest,
+                needed_time: e.target.value,
+              })
+            }
+            required
+          />
+        </div>
+
         <button
           type="submit"
           className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -317,6 +347,7 @@ const UserDashboard = () => {
     </div>
   </div>
 )}
+
 
     </div>
   );

@@ -71,7 +71,7 @@ available_requests_response = requests_ns.model("AvailableRequestsResponse", {
 
 
 # =========================================================
-# 1️⃣ USER CREATES REQUEST
+# 1️⃣ USER – CREATE REQUEST
 # =========================================================
 @requests_bp.route("", methods=["POST"])
 @jwt_required
@@ -85,12 +85,25 @@ def create_request():
         "pickup_address",
         "destination_address",
         "need",
-        "phone"
+        "phone",
+        "needed_date",
+        "needed_time"
     ]
 
     if any(not data.get(k) for k in required):
         return jsonify({
-            "error": "city, pickup_address, destination_address, need and phone are required"
+            "error": "All fields including needed_date and needed_time are required"
+        }), 400
+
+    # ✅ Combine date + time
+    try:
+        needed_at = datetime.strptime(
+            f"{data['needed_date']} {data['needed_time']}",
+            "%Y-%m-%d %H:%M"
+        )
+    except ValueError:
+        return jsonify({
+            "error": "Invalid date or time format"
         }), 400
 
     new_request = {
@@ -100,9 +113,14 @@ def create_request():
         "destination_address": data["destination_address"],
         "need": data["need"],
         "phone": data["phone"],
+
+        # 🔥 WHEN HELP IS NEEDED
+        "needed_date": data["needed_date"],   # UI friendly
+        "needed_time": data["needed_time"],   # UI friendly
+        "needed_at": needed_at,                # backend logic
+
         "status": "pending",
-        "helper_id": None,
-        "created_at": datetime.utcnow()
+        "helper_id": None
     }
 
     result = db.requests.insert_one(new_request)
@@ -129,10 +147,12 @@ def view_available_requests():
     if not helper or not helper.get("available"):
         return jsonify({"error": "Helper not available"}), 403
 
+    # 🔥 Only future requests, nearest first
     cursor = db.requests.find({
-        "city": helper["city"],
-        "status": "pending"
-    })
+    "city": helper["city"],
+    "status": "pending"
+}).sort("needed_at", 1)
+
 
     results = []
     for r in cursor:
@@ -145,22 +165,27 @@ def view_available_requests():
             "destination_address": r.get("destination_address"),
             "need": r["need"],
             "phone": r.get("phone"),
-            "user_name": user["name"] if user else "Unknown",
-            "created_at": r["created_at"]
+
+            # 🔥 WHAT MATTERS
+            "needed_date": r.get("needed_date"),
+            "needed_time": r.get("needed_time"),
+
+            "user_name": user["name"] if user else "Unknown"
         })
 
-    return jsonify({"available_requests": results}), 200
+    return jsonify({
+        "available_requests": results
+    }), 200
 
 
 # =========================================================
-# 3️⃣ HELPER ACCEPTS REQUEST
+# 3️⃣ HELPER – ACCEPT REQUEST
 # =========================================================
 @requests_bp.route("/<request_id>/accept", methods=["PATCH"])
 @jwt_required
 @role_required("helper")
 def accept_request(request_id):
     db = get_db()
-
     helper_id = ObjectId(request.user["user_id"])
 
     helper = db.helpers.find_one({"_id": helper_id})
@@ -226,24 +251,27 @@ def my_requests():
             "destination_address": r.get("destination_address"),
             "need": r["need"],
             "phone": r.get("phone"),
+
+            # 🔥 SHOW ACTUAL NEED TIME
+            "needed_date": r.get("needed_date"),
+            "needed_time": r.get("needed_time"),
+
             "status": r["status"],
             "is_rated": is_rated,
-            "helper_name": helper_name,
-            "created_at": r["created_at"]
+            "helper_name": helper_name
         })
 
     return jsonify({"requests": results}), 200
 
 
 # =========================================================
-# 5️⃣ HELPER COMPLETES REQUEST
+# 5️⃣ HELPER – COMPLETE REQUEST
 # =========================================================
 @requests_bp.route("/<request_id>/complete", methods=["PATCH"])
 @jwt_required
 @role_required("helper")
 def complete_request(request_id):
     db = get_db()
-
     helper_id = ObjectId(request.user["user_id"])
 
     req = db.requests.find_one({
@@ -271,7 +299,6 @@ def complete_request(request_id):
     )
 
     return jsonify({"message": "Request completed"}), 200
-
 
 # =========================================================
 # Swagger Wrapper Routes (NO LOGIC DUPLICATION)

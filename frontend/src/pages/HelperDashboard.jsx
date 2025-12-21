@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { requestsAPI, ratingsAPI, authAPI } from '../services/api';
 import Navbar from '../components/Navbar';
-import { Power, MapPin, Star } from 'lucide-react';
+import { Power, MapPin, Star, Clock } from 'lucide-react';
 
 const HelperDashboard = () => {
   const [requests, setRequests] = useState([]);
@@ -11,22 +11,22 @@ const HelperDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // =========================================================
-  // LOAD DASHBOARD (FIXED)
+  // LOAD DASHBOARD
   // =========================================================
   const loadDashboard = async () => {
     try {
       setLoading(true);
 
-      // 1️⃣ Auth check
+      // Role check
       const meRes = await authAPI.getMe();
       if (meRes.data?.user?.role !== 'helper') return;
 
-      // 2️⃣ Helper availability
+      // Availability
       const helperRes = await authAPI.getHelperMe();
-      const available = helperRes.data.available;
+      const available = helperRes.data.available === true;
       setIsAvailable(available);
 
-      // 3️⃣ Ratings
+      // Ratings
       try {
         const ratingsRes = await ratingsAPI.getMy();
         setAvgRating(ratingsRes.data?.avg_rating ?? null);
@@ -36,23 +36,23 @@ const HelperDashboard = () => {
         setTotalReviews(0);
       }
 
-      // 4️⃣ Pending requests (AVAILABLE)
-      let pendingRequests = [];
+      // Available requests
+      let pending = [];
       if (available) {
         const res = await requestsAPI.getAvailable();
-        pendingRequests = (res.data.available_requests || []).map(r => ({
+        pending = (res.data.available_requests || []).map(r => ({
           ...r,
-          status: 'pending', // 🔥 IMPORTANT FIX
+          status: 'pending',
         }));
       }
 
-      // 5️⃣ Accepted requests (MY)
+      // Accepted requests
       const myRes = await requestsAPI.getMy();
-      const acceptedRequests = (myRes.data.requests || [])
-        .filter(r => r.status === 'accepted');
+      const accepted = (myRes.data.requests || []).filter(
+        r => r.status === 'accepted'
+      );
 
-      // 6️⃣ Merge
-      setRequests([...pendingRequests, ...acceptedRequests]);
+      setRequests([...pending, ...accepted]);
 
     } catch (err) {
       console.error('Helper dashboard load failed:', err);
@@ -69,37 +69,31 @@ const HelperDashboard = () => {
   // TOGGLE AVAILABILITY
   // =========================================================
   const handleToggleAvailability = async () => {
-    const next = !isAvailable;
-    setIsAvailable(next);
     try {
+      const next = !isAvailable;
       await authAPI.toggleAvailability({ available: next });
+      setIsAvailable(next);
       await loadDashboard();
     } catch {
-      setIsAvailable(!next);
       alert('Failed to toggle availability');
     }
   };
 
   // =========================================================
-  // ACCEPT REQUEST
+  // ACTIONS
   // =========================================================
   const handleAcceptRequest = async (id) => {
     try {
       await requestsAPI.accept(id);
-      alert('Request accepted');
       await loadDashboard();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to accept request');
     }
   };
 
-  // =========================================================
-  // COMPLETE REQUEST
-  // =========================================================
   const handleCompleteRequest = async (id) => {
     try {
       await requestsAPI.complete(id);
-      alert('Ride completed');
       await loadDashboard();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to complete ride');
@@ -128,11 +122,12 @@ const HelperDashboard = () => {
       <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+
         {/* HEADER */}
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold">Helper Dashboard</h2>
-            <p className="text-gray-600">Manage requests and view ratings</p>
+            <p className="text-gray-600">Manage requests</p>
           </div>
 
           <button
@@ -149,10 +144,10 @@ const HelperDashboard = () => {
         </div>
 
         {/* PERFORMANCE */}
-        <div className="bg-white p-6 rounded-xl shadow mb-6 flex justify-between">
+        <div className="bg-white p-6 rounded-xl shadow mb-6 flex justify-between items-center">
           <div>
             <h3 className="font-semibold">Your Performance</h3>
-            <p className="text-gray-600">{totalReviews} total reviews</p>
+            <p className="text-gray-600">{totalReviews} reviews</p>
           </div>
           <div className="flex items-center gap-2">
             <Star className="text-yellow-500" fill="currentColor" />
@@ -161,76 +156,63 @@ const HelperDashboard = () => {
         </div>
 
         {/* REQUEST LIST */}
-<div className="space-y-4">
-  {requests.length === 0 ? (
-    <div className="bg-white p-12 text-center rounded-xl shadow">
-      No requests
-    </div>
-  ) : (
-    requests.map((req) => (
-      <div
-        key={req.request_id}
-        className="bg-white p-6 rounded-xl shadow"
-      >
-        {/* CITY */}
-        <div className="flex items-center gap-3 mb-1">
-          <MapPin className="text-blue-600" />
-          <h3 className="text-xl font-semibold">{req.city}</h3>
+        <div className="space-y-4">
+          {requests.length === 0 ? (
+            <div className="bg-white p-12 text-center rounded-xl shadow">
+              No requests available
+            </div>
+          ) : (
+            requests.map(req => (
+              <div key={req.request_id} className="bg-white p-6 rounded-xl shadow">
+
+                <div className="flex items-center gap-3 mb-1">
+                  <MapPin className="text-blue-600" />
+                  <h3 className="text-xl font-semibold">{req.city}</h3>
+                </div>
+
+                {req.user_name && (
+                  <p className="text-sm text-gray-500">
+                    Requested by <b>{req.user_name}</b>
+                  </p>
+                )}
+
+                {req.needed_date && req.needed_time && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 my-2">
+                    <Clock size={16} />
+                    {req.needed_date} at {req.needed_time}
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-500">
+                  Pickup: {req.pickup_address}
+                </p>
+                <p className="text-sm text-gray-500 mb-2">
+                  Destination: {req.destination_address}
+                </p>
+
+                <p className="text-gray-700 mb-3">{req.need}</p>
+
+                {req.status === 'pending' && (
+                  <button
+                    onClick={() => handleAcceptRequest(req.request_id)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Accept
+                  </button>
+                )}
+
+                {req.status === 'accepted' && (
+                  <button
+                    onClick={() => handleCompleteRequest(req.request_id)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Complete
+                  </button>
+                )}
+              </div>
+            ))
+          )}
         </div>
-
-        {/* USER NAME (only for available requests) */}
-        {req.user_name && (
-          <p className="text-sm text-gray-500 mb-1">
-            Requested by: <b>{req.user_name}</b>
-          </p>
-        )}
-
-        {/* PICKUP ADDRESS */}
-        {req.pickup_address && (
-          <p className="text-sm text-gray-500">
-            Pickup: {req.pickup_address}
-          </p>
-        )}
-
-        {/* DESTINATION ADDRESS */}
-        {req.destination_address && (
-          <p className="text-sm text-gray-500 mb-2">
-            Destination: {req.destination_address}
-          </p>
-        )}
-        {/* PHONE NUMBER */}
-{req.phone && (
-  <p className="text-sm text-gray-600 mb-2">
-    📞 Contact: <b>{req.phone}</b>
-  </p>
-)}
-
-
-        {/* NEED */}
-        <p className="text-gray-700 mb-4">{req.need}</p>
-
-        {/* ACTION BUTTONS */}
-        {req.status === 'pending' && (
-          <button
-            onClick={() => handleAcceptRequest(req.request_id)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Accept
-          </button>
-        )}
-
-        {req.status === 'accepted' && (
-          <button
-            onClick={() => handleCompleteRequest(req.request_id)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Complete Ride
-          </button>
-        )}
-      </div>
-    ))
-  )}
-</div>
 
       </div>
     </div>
