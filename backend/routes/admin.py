@@ -61,22 +61,24 @@ stats_model = admin_ns.model("PlatformStats", {
 @role_required("admin")
 def pending_helpers():
     db = get_db()
-
     helpers = db.helpers.find({"verified": False})
 
     result = []
     for h in helpers:
         result.append({
-            "_id": str(h["_id"]),
+            "id": str(h["_id"]),
             "name": h["name"],
             "email": h["email"],
             "city": h["city"],
-            "skills": h.get("skills", []),
-            "ngo_id": h.get("ngo_id"),
-            "created_at": h.get("created_at")
+            "skills": h["skills"],
+            "documents": h.get("documents")
         })
 
-    return jsonify({"helpers": result}), 200
+    return jsonify({
+    "helpers": result
+}), 200
+
+
 
 
 # =========================================================

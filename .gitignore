@@ -1,5 +1,19 @@
+# Environment
 .env
 venv/
+
+# Python
 __pycache__/
 *.pyc
-.DS_Store
+
+# Uploads
+backend/uploads/
+uploads/
+
+# Media
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.doc
+*.docx
