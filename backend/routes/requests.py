@@ -139,6 +139,7 @@ def create_request():
 @role_required("helper")
 def view_available_requests():
     db = get_db()
+    now = datetime.utcnow()
 
     helper = db.helpers.find_one({
         "_id": ObjectId(request.user["user_id"])
@@ -147,15 +148,28 @@ def view_available_requests():
     if not helper or not helper.get("available"):
         return jsonify({"error": "Helper not available"}), 403
 
-    # 🔥 Only future requests, nearest first
+    # 🔥 Fetch pending requests in helper city
     cursor = db.requests.find({
-    "city": helper["city"],
-    "status": "pending"
-}).sort("needed_at", 1)
-
+        "city": helper["city"],
+        "status": "pending"
+    }).sort("needed_at", 1)
 
     results = []
+
     for r in cursor:
+        # 🔥 LAZY EXPIRY (helpers should never see expired requests)
+        if r.get("needed_at") and r["needed_at"] < now:
+            db.requests.update_one(
+                {"_id": r["_id"]},
+                {
+                    "$set": {
+                        "status": "expired",
+                        "expired_at": now
+                    }
+                }
+            )
+            continue  # ❌ do NOT show to helper
+
         user = db.users.find_one({"_id": r["user_id"]})
 
         results.append({
@@ -166,7 +180,7 @@ def view_available_requests():
             "need": r["need"],
             "phone": r.get("phone"),
 
-            # 🔥 WHAT MATTERS
+            # 🔥 WHEN HELP IS NEEDED
             "needed_date": r.get("needed_date"),
             "needed_time": r.get("needed_time"),
 
@@ -176,7 +190,6 @@ def view_available_requests():
     return jsonify({
         "available_requests": results
     }), 200
-
 
 # =========================================================
 # 3️⃣ HELPER – ACCEPT REQUEST
@@ -236,8 +249,29 @@ def my_requests():
     )
 
     results = []
+    now = datetime.utcnow()
+
     for r in cursor:
-        is_rated = db.ratings.find_one({"request_id": r["_id"]}) is not None
+        # 🔥 LAZY EXPIRY
+        if (
+            r["status"] == "pending"
+            and r.get("needed_at")
+            and r["needed_at"] < now
+        ):
+            db.requests.update_one(
+                {"_id": r["_id"]},
+                {
+                    "$set": {
+                        "status": "expired",
+                        "expired_at": now
+                    }
+                }
+            )
+            r["status"] = "expired"
+
+        is_rated = db.ratings.find_one(
+            {"request_id": r["_id"]}
+        ) is not None
 
         helper_name = None
         if r.get("helper_id"):
@@ -252,7 +286,7 @@ def my_requests():
             "need": r["need"],
             "phone": r.get("phone"),
 
-            # 🔥 SHOW ACTUAL NEED TIME
+            # 🔥 NEED TIME
             "needed_date": r.get("needed_date"),
             "needed_time": r.get("needed_time"),
 
@@ -262,6 +296,7 @@ def my_requests():
         })
 
     return jsonify({"requests": results}), 200
+
 
 
 # =========================================================

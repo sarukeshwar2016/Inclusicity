@@ -105,6 +105,8 @@ const UserDashboard = () => {
   accepted: 'bg-blue-100 text-blue-800',
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+    expired: 'bg-gray-200 text-gray-700',
+
     };
 
     return (
@@ -183,7 +185,7 @@ const UserDashboard = () => {
                     <div className="flex items-center gap-3">
   {getStatusBadge(req.status)}
 
-  {(req.status === 'pending' || req.status === 'accepted') && (
+{(req.status === 'pending' || req.status === 'accepted') && req.status !== 'expired' && (
     <button
       onClick={() => handleCancelRequest(req.request_id || req._id)}
       className="flex items-center gap-1 px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
