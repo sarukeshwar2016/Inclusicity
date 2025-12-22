@@ -71,9 +71,15 @@ export const requestsAPI = {
   create: (data) => api.post('/requests', data),
   getMy: () => api.get('/requests/my'),
   getAvailable: () => api.get('/requests/available'),
+
   accept: (id) => api.patch(`/requests/${id}/accept`),
   complete: (id) => api.patch(`/requests/${id}/complete`),
+
+  // 🔥 CANCELLATION
+  cancelByUser: (id) => api.patch(`/requests/${id}/cancel`),
+  cancelByHelper: (id) => api.patch(`/requests/${id}/cancel/helper`),
 };
+
 
 // =========================================================
 // RATINGS APIs

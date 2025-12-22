@@ -90,6 +90,15 @@ const HelperDashboard = () => {
       alert(err.response?.data?.error || 'Failed to accept request');
     }
   };
+  const handleCancelRequest = async (id) => {
+  try {
+    await requestsAPI.cancelByHelper(id);
+    await loadDashboard();
+  } catch (err) {
+    alert(err.response?.data?.error || 'Failed to cancel request');
+  }
+};
+
 
   const handleCompleteRequest = async (id) => {
     try {
@@ -201,14 +210,24 @@ const HelperDashboard = () => {
                   </button>
                 )}
 
-                {req.status === 'accepted' && (
-                  <button
-                    onClick={() => handleCompleteRequest(req.request_id)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Complete
-                  </button>
-                )}
+  {req.status === 'accepted' && (
+  <div className="flex gap-3">
+    <button
+      onClick={() => handleCompleteRequest(req.request_id)}
+      className="bg-green-600 text-white px-4 py-2 rounded-lg"
+    >
+      Complete
+    </button>
+
+    <button
+      onClick={() => handleCancelRequest(req.request_id)}
+      className="bg-red-600 text-white px-4 py-2 rounded-lg"
+    >
+      Cancel
+    </button>
+  </div>
+)}
+
               </div>
             ))
           )}

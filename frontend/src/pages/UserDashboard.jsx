@@ -44,6 +44,15 @@ const UserDashboard = () => {
       alert(err.response?.data?.error || 'Failed to create request');
     }
   };
+  const handleCancelRequest = async (requestId) => {
+  try {
+    await requestsAPI.cancelByUser(requestId);
+    await fetchRequests();
+  } catch (err) {
+    alert(err.response?.data?.error || 'Failed to cancel request');
+  }
+};
+
 
   // =========================================================
   // RATING HANDLERS
@@ -64,7 +73,6 @@ const UserDashboard = () => {
     alert('Please provide both rating and feedback');
     return;
   }
-
   try {
     await ratingsAPI.create({
       request_id: requestId,
@@ -93,9 +101,10 @@ const UserDashboard = () => {
   // =========================================================
   const getStatusBadge = (status) => {
     const styles = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      accepted: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
+   pending: 'bg-yellow-100 text-yellow-800',
+  accepted: 'bg-blue-100 text-blue-800',
+  completed: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
     };
 
     return (
@@ -171,7 +180,20 @@ const UserDashboard = () => {
                         </p>
                       )}
                     </div>
-                    {getStatusBadge(req.status)}
+                    <div className="flex items-center gap-3">
+  {getStatusBadge(req.status)}
+
+  {(req.status === 'pending' || req.status === 'accepted') && (
+    <button
+      onClick={() => handleCancelRequest(req.request_id || req._id)}
+      className="flex items-center gap-1 px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+    >
+      <X size={14} />
+      Cancel
+    </button>
+  )}
+</div>
+
                   </div>
 
                   {/* ⭐ RATE HELPER */}

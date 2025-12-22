@@ -301,6 +301,88 @@ def complete_request(request_id):
     return jsonify({"message": "Request completed"}), 200
 
 # =========================================================
+# 6️⃣ USER – CANCEL REQUEST
+# =========================================================
+@requests_bp.route("/<request_id>/cancel", methods=["PATCH"])
+@jwt_required
+@role_required("user")
+def cancel_request_user(request_id):
+    db = get_db()
+    user_id = ObjectId(request.user["user_id"])
+
+    req = db.requests.find_one({
+        "_id": ObjectId(request_id),
+        "user_id": user_id,
+        "status": {"$in": ["pending", "accepted"]}
+    })
+
+    if not req:
+        return jsonify({"error": "Request not found or cannot be cancelled"}), 404
+
+    # If helper already accepted → make helper available again
+    if req.get("helper_id"):
+        db.helpers.update_one(
+            {"_id": req["helper_id"]},
+            {"$set": {"available": True}}
+        )
+
+    db.requests.update_one(
+        {"_id": req["_id"]},
+        {
+            "$set": {
+                "status": "cancelled",
+                "cancelled_by": "user",
+                "cancelled_at": datetime.utcnow()
+            }
+        }
+    )
+
+    return jsonify({"message": "Request cancelled by user"}), 200
+
+# =========================================================
+# 7️⃣ HELPER – CANCEL REQUEST
+# =========================================================
+# =========================================================
+# 7️⃣ HELPER – CANCEL REQUEST (FINAL, CORRECT)
+# =========================================================
+@requests_bp.route("/<request_id>/cancel/helper", methods=["PATCH"])
+@jwt_required
+@role_required("helper")
+def cancel_request_helper(request_id):
+    db = get_db()
+    helper_id = ObjectId(request.user["user_id"])
+
+    req = db.requests.find_one({
+        "_id": ObjectId(request_id),
+        "helper_id": helper_id,
+        "status": "accepted"
+    })
+
+    if not req:
+        return jsonify({"error": "Request not found or cannot be cancelled"}), 404
+
+    # Make helper available again
+    db.helpers.update_one(
+        {"_id": helper_id},
+        {"$set": {"available": True}}
+    )
+
+    # ❌ DO NOT reopen request
+    # ✅ Permanently cancel it
+    db.requests.update_one(
+        {"_id": req["_id"]},
+        {
+            "$set": {
+                "status": "cancelled",
+                "cancelled_by": "helper",
+                "cancelled_at": datetime.utcnow()
+            }
+        }
+    )
+
+    return jsonify({"message": "Request cancelled by helper"}), 200
+
+# =========================================================
 # Swagger Wrapper Routes (NO LOGIC DUPLICATION)
 # =========================================================
 @requests_ns.route("")
@@ -339,3 +421,16 @@ class SwaggerCompleteRequest(Resource):
     @requests_ns.doc(security="Bearer")
     def patch(self, request_id):
         return complete_request(request_id)
+    
+@requests_ns.route("/<string:request_id>/cancel")
+class SwaggerCancelRequestUser(Resource):
+    @requests_ns.doc(security="Bearer")
+    def patch(self, request_id):
+        return cancel_request_user(request_id)
+
+
+@requests_ns.route("/<string:request_id>/cancel/helper")
+class SwaggerCancelRequestHelper(Resource):
+    @requests_ns.doc(security="Bearer")
+    def patch(self, request_id):
+        return cancel_request_helper(request_id)
