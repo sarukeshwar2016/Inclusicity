@@ -327,6 +327,18 @@ def toggle_availability():
 
     helper_id = ObjectId(request.user["user_id"])
 
+    # 🔒 BLOCK going online if helper has active request
+    if data["available"] is True:
+        active_request = db.requests.find_one({
+            "helper_id": helper_id,
+            "status": "accepted"
+        })
+
+        if active_request:
+            return jsonify({
+                "error": "Complete or cancel the active request before going online"
+            }), 403
+
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {"available": data["available"]}}
