@@ -7,7 +7,13 @@ socketio = SocketIO(cors_allowed_origins="*")
 ALLOWED_ROOMS = ["movies", "music", "sports", "general"]
 
 # ============================
-# JOIN ROOM
+# IN-MEMORY ROOM STATE
+# ============================
+room_users = {}        # room -> { sid: {role} }
+muted_users = set()    # sids muted by admin
+
+# ============================
+# JOIN ROOM (PRESENCE)
 # ============================
 @socketio.on("join_room")
 def join_voice(data):
@@ -24,28 +30,108 @@ def join_voice(data):
         emit("error", {"msg": "Invalid token"})
         return
 
-    if user.get("role") != "user":
-        emit("error", {"msg": "Only users allowed"})
+    if user.get("role") not in ["user", "admin"]:
+        emit("error", {"msg": "Unauthorized role"})
         return
 
     join_room(room)
 
+    # init room
+    room_users.setdefault(room, {})
+    room_users[room][request.sid] = {
+        "role": user.get("role")
+    }
+
+    # notify others
     emit(
         "user_joined",
-        {"sid": request.sid},
+        {
+            "sid": request.sid,
+            "role": user.get("role")
+        },
+        room=room,
+        include_self=False
+    )
+
+    # send updated presence list
+    emit(
+        "room_users",
+        {
+            "users": [
+                {"sid": sid, "role": info["role"]}
+                for sid, info in room_users[room].items()
+            ]
+        },
+        room=room
+    )
+
+# ============================
+# LEAVE ROOM (PRESENCE)
+# ============================
+@socketio.on("leave_room")
+def leave_voice(data):
+    room = data.get("room")
+
+    if room in room_users and request.sid in room_users[room]:
+        del room_users[room][request.sid]
+
+        emit(
+            "user_left",
+            {"sid": request.sid},
+            room=room
+        )
+
+        emit(
+            "room_users",
+            {
+                "users": [
+                    {"sid": sid, "role": info["role"]}
+                    for sid, info in room_users[room].items()
+                ]
+            },
+            room=room
+        )
+
+    leave_room(room)
+
+# ============================
+# SPEAKING INDICATOR
+# ============================
+@socketio.on("speaking")
+def speaking_event(data):
+    room = data.get("room")
+    is_speaking = data.get("isSpeaking", False)
+
+    emit(
+        "speaking",
+        {
+            "sid": request.sid,
+            "isSpeaking": is_speaking
+        },
         room=room,
         include_self=False
     )
 
 # ============================
-# LEAVE ROOM
+# ADMIN FORCE MUTE
 # ============================
-@socketio.on("leave_room")
-def leave_voice(data):
-    leave_room(data.get("room"))
+@socketio.on("force_mute")
+def force_mute(data):
+    target_sid = data.get("sid")
+
+    if not target_sid:
+        return
+
+    muted_users.add(target_sid)
+
+    emit(
+        "force_mute",
+        {"sid": target_sid},
+        to=target_sid
+    )
 
 # ============================
-# WEBRTC SIGNALING
+# WEBRTC SIGNALING (UNCHANGED)
 # ============================
 @socketio.on("offer")
 def handle_offer(data):

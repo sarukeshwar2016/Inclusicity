@@ -40,7 +40,7 @@ function App() {
 <Route
   path="/user/voice"
   element={
-    <PrivateRoute allowedRoles={["user"]}>
+    <PrivateRoute allowedRoles={["user","admin"]}>
       <UserVoiceRooms />
     </PrivateRoute>
   }
