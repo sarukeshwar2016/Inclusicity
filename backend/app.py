@@ -1,10 +1,12 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_pymongo import PyMongo
 from flask_cors import CORS
 from flask_restx import Api
 from dotenv import load_dotenv
-from flask import send_from_directory
 import os
+
+from flask_socketio import SocketIO
+from routes.voice import socketio
 
 load_dotenv()
 
@@ -30,9 +32,9 @@ mongo = PyMongo(app)
 
 # -------------------- Uploads --------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
 @app.route("/uploads/<path:filename>")
 def uploaded_files(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
@@ -75,5 +77,8 @@ api.add_namespace(ratings_ns, path="/ratings")
 def home():
     return "InclusiCity backend running"
 
+# -------------------- Socket.IO (INIT AT END) --------------------
+socketio.init_app(app, cors_allowed_origins="*")
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True)

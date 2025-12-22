@@ -1,7 +1,11 @@
-import axios from 'axios';
+import axios from "axios";
+import { io } from "socket.io-client";
 
-const API_BASE_URL = 'http://127.0.0.1:5000';
+const API_BASE_URL = "http://127.0.0.1:5000";
 
+// =========================================================
+// AXIOS INSTANCE
+// =========================================================
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
@@ -11,12 +15,10 @@ const api = axios.create({
 // =========================================================
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-
+    const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
   (error) => Promise.reject(error)
@@ -34,18 +36,12 @@ api.interceptors.response.use(
     // ✅ Logout ONLY for real auth failure
     if (
       status === 401 &&
-      (message === 'Invalid token' || message === 'Token expired')
+      (message === "Invalid token" || message === "Token expired")
     ) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
-      window.location.href = '/login';
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      window.location.href = "/login";
     }
-
-    // ❌ DO NOT logout for:
-    // - validation errors
-    // - permission errors (403)
-    // - duplicate rating (409)
-    // - temporary backend issues
 
     return Promise.reject(error);
   }
@@ -55,47 +51,78 @@ api.interceptors.response.use(
 // AUTH APIs
 // =========================================================
 export const authAPI = {
-  signup: (data) => api.post('/auth/signup', data),
-  signupHelper: (data) => api.post('/auth/signup/helper', data),
-  login: (data) => api.post('/auth/login', data),
-  getMe: () => api.get('/auth/me'),
-  getHelperMe: () => api.get('/auth/helper/me'),
+  signup: (data) => api.post("/auth/signup", data),
+  signupHelper: (data) => api.post("/auth/signup/helper", data),
+  login: (data) => api.post("/auth/login", data),
+  getMe: () => api.get("/auth/me"),
+  getHelperMe: () => api.get("/auth/helper/me"),
   toggleAvailability: (data) =>
-    api.patch('/auth/helper/availability', data),
+    api.patch("/auth/helper/availability", data),
 };
 
 // =========================================================
 // REQUEST APIs
 // =========================================================
 export const requestsAPI = {
-  create: (data) => api.post('/requests', data),
-  getMy: () => api.get('/requests/my'),
-  getAvailable: () => api.get('/requests/available'),
+  create: (data) => api.post("/requests", data),
+  getMy: () => api.get("/requests/my"),
+  getAvailable: () => api.get("/requests/available"),
 
   accept: (id) => api.patch(`/requests/${id}/accept`),
   complete: (id) => api.patch(`/requests/${id}/complete`),
 
-  // 🔥 CANCELLATION
   cancelByUser: (id) => api.patch(`/requests/${id}/cancel`),
   cancelByHelper: (id) => api.patch(`/requests/${id}/cancel/helper`),
 };
-
 
 // =========================================================
 // RATINGS APIs
 // =========================================================
 export const ratingsAPI = {
-  create: (data) => api.post('/ratings', data),
-  getMy: () => api.get('/ratings/my'),
+  create: (data) => api.post("/ratings", data),
+  getMy: () => api.get("/ratings/my"),
 };
 
 // =========================================================
 // ADMIN APIs
 // =========================================================
 export const adminAPI = {
-  getStats: () => api.get('/admin/stats'),
-  getPendingHelpers: () => api.get('/admin/helpers/pending'),
+  getStats: () => api.get("/admin/stats"),
+  getPendingHelpers: () => api.get("/admin/helpers/pending"),
   verifyHelper: (id) => api.patch(`/admin/helpers/${id}/verify`),
 };
+
+// =========================================================
+// SOCKET.IO (SINGLE INSTANCE)
+// =========================================================
+export const voiceSocket = io(API_BASE_URL, {
+  autoConnect: false,
+});
+
+// =========================================================
+// VOICE ROOM HELPERS (USER ONLY)
+// =========================================================
+export const joinVoiceRoom = (room) => {
+  if (!voiceSocket.connected) {
+    voiceSocket.connect();
+  }
+
+  voiceSocket.emit("join_room", {
+    token: localStorage.getItem("token"),
+    room,
+  });
+};
+
+export const leaveVoiceRoom = (room, disconnect = false) => {
+  voiceSocket.emit("leave_room", { room });
+
+  if (disconnect) {
+    voiceSocket.disconnect();
+  }
+};
+// 🔥 DEBUG ONLY – expose socket for console testing
+window.voiceSocket = voiceSocket;
+window.joinVoiceRoom = joinVoiceRoom;
+window.leaveVoiceRoom = leaveVoiceRoom;
 
 export default api;

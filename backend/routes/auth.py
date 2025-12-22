@@ -49,6 +49,13 @@ def decode_jwt(token):
         current_app.config["JWT_SECRET_KEY"],
         algorithms=[current_app.config["JWT_ALGORITHM"]]
     )
+def decode_jwt_from_socket(token):
+    try:
+        return decode_jwt(token)
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 
 def jwt_required(f):

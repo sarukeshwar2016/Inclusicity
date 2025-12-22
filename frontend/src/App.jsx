@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
+import UserVoiceRooms from './pages/UserVoiceRooms';
 
 // Public Pages
 import HomePage from './pages/HomePage';
@@ -36,6 +37,14 @@ function App() {
               </PrivateRoute>
             }
           />
+<Route
+  path="/user/voice"
+  element={
+    <PrivateRoute allowedRoles={["user"]}>
+      <UserVoiceRooms />
+    </PrivateRoute>
+  }
+/>
 
           <Route
             path="/user/map"
@@ -64,8 +73,8 @@ function App() {
                 <AdminDashboard />
               </PrivateRoute>
             }
+            
           />
-
           {/* ================= FALLBACK ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

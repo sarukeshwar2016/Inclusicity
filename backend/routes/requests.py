@@ -95,6 +95,19 @@ def create_request():
             "error": "All fields including needed_date and needed_time are required"
         }), 400
 
+    user_id = ObjectId(request.user["user_id"])
+
+    # 🔒 BLOCK if user already has an active request
+    active_request = db.requests.find_one({
+        "user_id": user_id,
+        "status": {"$in": ["pending", "accepted"]}
+    })
+
+    if active_request:
+        return jsonify({
+            "error": "You already have an active request. Complete or cancel it before creating a new one."
+        }), 409
+
     # ✅ Combine date + time
     try:
         needed_at = datetime.strptime(
@@ -107,7 +120,7 @@ def create_request():
         }), 400
 
     new_request = {
-        "user_id": ObjectId(request.user["user_id"]),
+        "user_id": user_id,
         "city": data["city"],
         "pickup_address": data["pickup_address"],
         "destination_address": data["destination_address"],
@@ -115,12 +128,13 @@ def create_request():
         "phone": data["phone"],
 
         # 🔥 WHEN HELP IS NEEDED
-        "needed_date": data["needed_date"],   # UI friendly
-        "needed_time": data["needed_time"],   # UI friendly
-        "needed_at": needed_at,                # backend logic
+        "needed_date": data["needed_date"],
+        "needed_time": data["needed_time"],
+        "needed_at": needed_at,
 
         "status": "pending",
-        "helper_id": None
+        "helper_id": None,
+        "created_at": datetime.utcnow()
     }
 
     result = db.requests.insert_one(new_request)
@@ -129,6 +143,7 @@ def create_request():
         "message": "Request created",
         "request_id": str(result.inserted_id)
     }), 201
+
 
 
 # =========================================================
