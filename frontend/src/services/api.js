@@ -113,11 +113,10 @@ export const joinVoiceRoom = (room) => {
   });
 };
 
-export const leaveVoiceRoom = (room, disconnect = false) => {
-  voiceSocket.emit("leave_room", { room });
-
-  if (disconnect) {
-    voiceSocket.disconnect();
+export const leaveVoiceRoom = ({ room }) => {
+  if (voiceSocket.connected) {
+    voiceSocket.emit("leave_room", { room });
+    voiceSocket.disconnect(); // Correctly triggers 'disconnect' on server
   }
 };
 // 🔥 DEBUG ONLY – expose socket for console testing
