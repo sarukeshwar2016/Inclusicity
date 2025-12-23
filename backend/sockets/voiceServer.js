@@ -3,24 +3,26 @@ const rooms = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("join_room", ({ room, role }) => {
-    socket.join(room);
+  socket.on("join_room", ({ room, role, name }) => {
+  socket.join(room);
 
-    if (!rooms[room]) {
-      rooms[room] = {};
-    }
+  if (!rooms[room]) {
+    rooms[room] = {};
+  }
 
-    // Add user to the room state
-    rooms[room][socket.id] = { sid: socket.id, role };
+  rooms[room][socket.id] = {
+    sid: socket.id,
+    name: name || "Anonymous", // ✅ STORE NAME
+    role,
+  };
 
-    // 1. Update everyone's user list UI
-    io.to(room).emit("room_users", {
-      users: Object.values(rooms[room]),
-    });
-
-    // 2. Trigger signaling: Tell others to OFFER to the new user
-    socket.to(room).emit("user_joined", { sid: socket.id });
+  io.to(room).emit("room_users", {
+    users: Object.values(rooms[room]),
   });
+
+  socket.to(room).emit("user_joined", { sid: socket.id });
+});
+
 
   socket.on("leave_room", ({ room }) => {
     cleanupUserFromRoom(socket, room);

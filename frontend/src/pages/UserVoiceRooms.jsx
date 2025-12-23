@@ -6,6 +6,9 @@ import { Mic, MicOff, LogOut, Radio } from "lucide-react";
 const rooms = ["movies", "music", "sports", "general"];
 
 export default function UserVoiceRooms() {
+  // Pull user data from AuthContext
+  const { user, role } = useAuth(); 
+  
   const currentRoom = useRef(null);
   const localStream = useRef(null);
   const peers = useRef({});
@@ -14,38 +17,60 @@ export default function UserVoiceRooms() {
   const remoteAudios = useRef({});
   const audioCtxRef = useRef(null);
 
-  const { role } = useAuth();
-
   const [roomUsers, setRoomUsers] = useState([]);
   const [speakingUsers, setSpeakingUsers] = useState({});
   const [activeRoom, setActiveRoom] = useState(null);
+  console.log("VOICE JOIN DEBUG →", {
+  user,
+  name: user?.name,
+  username: user?.username,
+  email: user?.email,
+  role,
+});
 
-  const startVoice = async (room) => {
-    if (currentRoom.current === room) return;
 
-    if (currentRoom.current) {
-      leaveRoom();
-    }
+  // ============================
+  // START VOICE
+  // ============================
+ const startVoice = async (room) => {
+  if (!user) return; // 🔥 BLOCK until AuthContext is ready
 
-    if (!localStream.current) {
-      if (role === "user") {
-        try {
-          localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-          startSpeakingDetection(room);
-        } catch (err) {
-          console.error("Mic access denied:", err);
-          return;
-        }
-      } else {
-        localStream.current = new MediaStream();
+  if (currentRoom.current === room) return;
+
+  if (currentRoom.current) {
+    leaveRoom();
+  }
+
+  if (!localStream.current) {
+    if (role === "user") {
+      try {
+        localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        startSpeakingDetection(room);
+      } catch (err) {
+        console.error("Mic access denied:", err);
+        return;
       }
+    } else {
+      localStream.current = new MediaStream();
     }
+  }
 
-    currentRoom.current = room;
-    setActiveRoom(room);
-    joinVoiceRoom(room);
-  };
+  currentRoom.current = room;
+  setActiveRoom(room);
 
+  const displayName =
+  user.name ||
+  user.username ||
+  user.email?.split("@")[0] ||
+  "Guest";
+ // ✅ guaranteed now
+  joinVoiceRoom(room, displayName, role);
+};
+
+
+  // ============================
+  // MUTE / UNMUTE
+  // ============================
   const muteMic = () => {
     if (!localStream.current || role !== "user") return;
     localStream.current.getAudioTracks().forEach(t => (t.enabled = false));
@@ -56,10 +81,12 @@ export default function UserVoiceRooms() {
     localStream.current.getAudioTracks().forEach(t => (t.enabled = true));
   };
 
+  // ============================
+  // LEAVE ROOM
+  // ============================
   const leaveRoom = () => {
     if (!currentRoom.current) return;
 
-    // Save room name before clearing ref
     const roomToLeave = currentRoom.current;
 
     if (localStream.current) {
@@ -90,10 +117,13 @@ export default function UserVoiceRooms() {
     setActiveRoom(null);
     setRoomUsers([]);
     
-    // FIX: Pass the room name so backend cleanup works instantly
+    // Explicitly emit leave to server
     leaveVoiceRoom({ room: roomToLeave }); 
   };
 
+  // ============================
+  // SPEAKING DETECTION
+  // ============================
   const startSpeakingDetection = (room) => {
     if (audioCtxRef.current) return;
 
@@ -121,6 +151,9 @@ export default function UserVoiceRooms() {
     }, 300);
   };
 
+  // ============================
+  // PEER CREATION (WEBRTC)
+  // ============================
   const getOrCreatePeer = (id) => {
     if (peers.current[id]) return peers.current[id];
     if (!localStream.current) return null;
@@ -160,6 +193,9 @@ export default function UserVoiceRooms() {
     return pc;
   };
 
+  // ============================
+  // SOCKET LISTENERS
+  // ============================
   useEffect(() => {
     voiceSocket.on("room_users", ({ users }) => {
       setRoomUsers(users);
@@ -274,7 +310,13 @@ export default function UserVoiceRooms() {
               <div key={u.sid} className={`flex justify-between items-center p-3 rounded-lg border transition ${speakingUsers[u.sid] ? 'border-green-400 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${speakingUsers[u.sid] ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                  <span className="font-mono text-slate-700">{u.sid.slice(0, 8)}</span>
+                  {/* FIX: Use u.name (passed from backend) instead of socket ID */}
+                  <span className="font-semibold text-slate-700">
+                    {u.name || "Anonymous"} 
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    ({u.sid.slice(0, 5)})
+                  </span>
                 </div>
                 {role === "admin" && u.role === "user" && (
                   <button

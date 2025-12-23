@@ -102,7 +102,9 @@ export const voiceSocket = io(API_BASE_URL, {
 // =========================================================
 // VOICE ROOM HELPERS (USER ONLY)
 // =========================================================
-export const joinVoiceRoom = (room) => {
+// ... existing axios code ...
+
+export const joinVoiceRoom = (room, name, role) => {
   if (!voiceSocket.connected) {
     voiceSocket.connect();
   }
@@ -110,13 +112,15 @@ export const joinVoiceRoom = (room) => {
   voiceSocket.emit("join_room", {
     token: localStorage.getItem("token"),
     room,
-  });
+    name,
+    role, // ✅ Pass the real name to the server
+  }); 
 };
 
 export const leaveVoiceRoom = ({ room }) => {
   if (voiceSocket.connected) {
     voiceSocket.emit("leave_room", { room });
-    voiceSocket.disconnect(); // Correctly triggers 'disconnect' on server
+    voiceSocket.disconnect(); // ✅ Triggers the 'disconnect' cleanup on server
   }
 };
 // 🔥 DEBUG ONLY – expose socket for console testing
