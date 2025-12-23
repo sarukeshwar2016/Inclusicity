@@ -66,23 +66,6 @@ const Navbar = () => {
                 Dashboard
               </NavLink>
 
-              {/* User-only MAP */}
-              {role === 'user' && (
-                <NavLink
-                  to="/user/map"
-                  className={({ isActive }) =>
-                    `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                      isActive
-                        ? 'bg-green-600 text-white'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`
-                  }
-                >
-                  <Map size={18} />
-                  Map
-                </NavLink>
-              )}
-
               {/* Voice Rooms (User + Admin) */}
               {(role === 'user' || role === 'admin') && (
                 <NavLink
