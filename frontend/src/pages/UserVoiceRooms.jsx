@@ -1,10 +1,10 @@
 import { joinVoiceRoom, leaveVoiceRoom, voiceSocket } from "../services/api";
 import { useRef, useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { Mic, MicOff, LogOut, Radio, Users, Volume2, UserPlus, UserMinus, Headphones } from "lucide-react";
+import { Mic, MicOff, LogOut, Radio, Headphones } from "lucide-react";
 import Navbar from "../components/Navbar";
 import SideBar from "../components/SideBar";
-import { motion } from 'framer-motion';
+import { motion } from "framer-motion";
 
 const rooms = ["movies", "music", "sports", "general"];
 
@@ -28,13 +28,13 @@ export default function UserVoiceRooms() {
   const currentRoom = useRef(null);
   const localStream = useRef(null);
   const peers = useRef({});
-  const speakingInterval = useRef(null);
   const remoteAudios = useRef({});
   const audioCtxRef = useRef(null);
+  const speakingInterval = useRef(null);
 
+  const [activeRoom, setActiveRoom] = useState(null);
   const [roomUsers, setRoomUsers] = useState([]);
   const [speakingUsers, setSpeakingUsers] = useState({});
-  const [activeRoom, setActiveRoom] = useState(null);
   const [isMuted, setIsMuted] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [roomCounts, setRoomCounts] = useState({
@@ -43,12 +43,10 @@ export default function UserVoiceRooms() {
     sports: 0,
     general: 0,
   });
-
-  const currentUserSid = voiceSocket.id;
-  const isCurrentUserSpeaking = currentUserSid ? speakingUsers[currentUserSid] : false;
+  const [currentUserSid, setCurrentUserSid] = useState(null);
 
   // ============================
-  // TOAST NOTIFICATION
+  // NOTIFICATIONS
   // ============================
   const addNotification = (message, type = "info") => {
     const id = Date.now();
@@ -59,45 +57,63 @@ export default function UserVoiceRooms() {
   };
 
   // ============================
+  // SOCKET CONNECT
+  // ============================
+  useEffect(() => {
+    const handleConnect = () => {
+      setCurrentUserSid(voiceSocket.id);
+    };
+    voiceSocket.on("connect", handleConnect);
+    return () => voiceSocket.off("connect", handleConnect);
+  }, []);
+
+  // ============================
   // JOIN ROOM
   // ============================
   const startVoice = async (room) => {
-    if (!user) return;
+    if (!user) {
+      addNotification("You must be logged in to join a room", "warning");
+      return;
+    }
     if (currentRoom.current === room) return;
-    if (currentRoom.current) leaveRoom();
+    if (currentRoom.current) {
+      addNotification("Leaving current room first...", "info");
+      leaveRoom();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
 
-    if (!localStream.current && role === "user") {
-      try {
+    try {
+      if (!localStream.current && role === "user") {
         localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
         localStream.current.getAudioTracks().forEach((t) => (t.enabled = true));
         setIsMuted(false);
         startSpeakingDetection(room);
-      } catch (err) {
-        console.error("Mic access denied:", err);
-        alert("Microphone access is required to join voice rooms.");
-        return;
       }
+
+      currentRoom.current = room;
+      setActiveRoom(room);
+
+      voiceSocket.emit("join_room", {
+        room,
+        token: localStorage.getItem("token"),
+      });
+
+      addNotification(`Joined ${room.charAt(0).toUpperCase() + room.slice(1)} room`, "success");
+
+      // Optimistic UI for first user
+      const displayName = user.name || user.email?.split("@")[0] || "You";
+      setRoomUsers([{
+        sid: voiceSocket.id || "temp",
+        name: displayName,
+        role: role,
+      }]);
+      setRoomCounts((prev) => ({ ...prev, [room]: 1 }));
+    } catch (err) {
+      console.error("Failed to join room:", err);
+      addNotification("Failed to join room. Try again.", "warning");
+      currentRoom.current = null;
+      setActiveRoom(null);
     }
-
-    currentRoom.current = room;
-    setActiveRoom(room);
-
-    const displayName =
-      user.name || user.username || user.email?.split("@")[0] || "Guest";
-
-    joinVoiceRoom(room, displayName, role);
-    addNotification(`Joined ${room.charAt(0).toUpperCase() + room.slice(1)} room`, "success");
-  };
-
-  // ============================
-  // TOGGLE MUTE
-  // ============================
-  const toggleMute = () => {
-    if (!localStream.current || role !== "user") return;
-    const enabled = isMuted;
-    localStream.current.getAudioTracks().forEach((t) => (t.enabled = enabled));
-    setIsMuted(!enabled);
-    addNotification(enabled ? "Microphone unmuted" : "Microphone muted", "info");
   };
 
   // ============================
@@ -105,7 +121,6 @@ export default function UserVoiceRooms() {
   // ============================
   const leaveRoom = () => {
     if (!currentRoom.current) return;
-
     const roomToLeave = currentRoom.current;
     addNotification(`Left ${roomToLeave.charAt(0).toUpperCase() + roomToLeave.slice(1)} room`, "info");
 
@@ -137,9 +152,6 @@ export default function UserVoiceRooms() {
     setActiveRoom(null);
     setRoomUsers([]);
     setIsMuted(true);
-
-    // Reset count for left room
-    setRoomCounts((prev) => ({ ...prev, [roomToLeave]: 0 }));
 
     leaveVoiceRoom({ room: roomToLeave });
   };
@@ -183,17 +195,23 @@ export default function UserVoiceRooms() {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
-    localStream.current.getTracks().forEach((track) =>
-      pc.addTrack(track, localStream.current)
-    );
+    localStream.current.getTracks().forEach((track) => {
+      pc.addTrack(track, localStream.current);
+    });
 
     pc.ontrack = (e) => {
-      if (remoteAudios.current[id]) remoteAudios.current[id].remove();
-      const audio = document.createElement("audio");
+      console.log("Received remote stream from", id, e.streams[0]);
+      if (remoteAudios.current[id]) {
+        remoteAudios.current[id].remove();
+      }
+
+      const audio = new Audio();
       audio.srcObject = e.streams[0];
       audio.autoplay = true;
+      audio.volume = 1.0;
+      audio.play().catch((err) => console.log("Autoplay prevented:", err));
+
       remoteAudios.current[id] = audio;
-      document.body.appendChild(audio);
     };
 
     pc.onicecandidate = (e) => {
@@ -207,45 +225,18 @@ export default function UserVoiceRooms() {
   };
 
   // ============================
-  // SOCKET LISTENERS
+  // SOCKET LISTENERS — POLITE SIGNALING (No race conditions)
   // ============================
   useEffect(() => {
     const handleRoomUsers = ({ users }) => {
-      const previousUsers = roomUsers;
-      setRoomUsers(users);
-
-      // Update count for the current active room
+      setRoomUsers(users || []);
       if (activeRoom) {
-        setRoomCounts((prev) => ({
-          ...prev,
-          [activeRoom]: users.length,
-        }));
-      }
-
-      // Join notification for others
-      if (activeRoom && users.length > previousUsers.length) {
-        const newUser = users.find((u) => !previousUsers.some((old) => old.sid === u.sid));
-        if (newUser && newUser.sid !== currentUserSid) {
-          addNotification(`${newUser.name} joined`, "join");
-        }
+        setRoomCounts((prev) => ({ ...prev, [activeRoom]: users?.length || 0 }));
       }
     };
 
     const handleUserLeft = ({ sid }) => {
-      const leftUser = roomUsers.find((u) => u.sid === sid);
-      if (leftUser && sid !== currentUserSid) {
-        addNotification(`${leftUser.name} left`, "leave");
-      }
-
       setRoomUsers((prev) => prev.filter((u) => u.sid !== sid));
-
-      if (activeRoom) {
-        setRoomCounts((prev) => ({
-          ...prev,
-          [activeRoom]: Math.max(0, (prev[activeRoom] || 0) - 1),
-        }));
-      }
-
       if (peers.current[sid]) {
         peers.current[sid].close();
         delete peers.current[sid];
@@ -261,69 +252,97 @@ export default function UserVoiceRooms() {
     voiceSocket.on("speaking", ({ sid, isSpeaking }) => {
       setSpeakingUsers((prev) => ({ ...prev, [sid]: isSpeaking }));
     });
-    voiceSocket.on("force_mute", ({ sid }) => {
-      if (sid === voiceSocket.id && localStream.current) {
-        localStream.current.getAudioTracks().forEach((t) => (t.enabled = false));
-        setIsMuted(true);
-        addNotification("You were muted by an admin", "warning");
+
+    // Polite: Only lower socket ID creates offer
+    voiceSocket.on("user_joined", async ({ sid }) => {
+      if (sid === voiceSocket.id) return;
+
+      const pc = getOrCreatePeer(sid);
+      if (!pc) return;
+
+      if (voiceSocket.id < sid) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          voiceSocket.emit("offer", { to: sid, offer });
+        } catch (err) {
+          console.error("Offer creation failed:", err);
+        }
       }
     });
-    voiceSocket.on("user_joined", async ({ sid }) => {
-      if (peers.current[sid]) return;
-      const pc = getOrCreatePeer(sid);
-      if (!pc || pc.signalingState !== "stable") return;
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      voiceSocket.emit("offer", { to: sid, offer });
-    });
+
     voiceSocket.on("offer", async ({ from, offer }) => {
       const pc = getOrCreatePeer(from);
-      if (!pc || pc.signalingState !== "stable") return;
-      await pc.setRemoteDescription(offer);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      voiceSocket.emit("answer", { to: from, answer });
+      if (!pc) return;
+
+      if (pc.signalingState === "stable") {
+        try {
+          await pc.setRemoteDescription(offer);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          voiceSocket.emit("answer", { to: from, answer });
+        } catch (err) {
+          console.error("Failed to handle offer:", err);
+        }
+      }
     });
+
     voiceSocket.on("answer", async ({ from, answer }) => {
       const pc = peers.current[from];
-      if (!pc || pc.signalingState !== "have-local-offer") return;
-      await pc.setRemoteDescription(answer);
+      if (!pc) return;
+
+      if (pc.signalingState === "have-local-offer") {
+        try {
+          await pc.setRemoteDescription(answer);
+        } catch (err) {
+          console.error("Failed to set answer:", err);
+        }
+      }
     });
+
     voiceSocket.on("ice_candidate", async ({ from, candidate }) => {
       const pc = peers.current[from];
       if (!pc) return;
-      await pc.addIceCandidate(candidate);
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch (err) {
+        console.error("ICE error:", err);
+      }
     });
 
     return () => {
-      if (currentRoom.current) {
-        leaveRoom();
-      }
       voiceSocket.off("room_users", handleRoomUsers);
       voiceSocket.off("user_left", handleUserLeft);
       voiceSocket.off("speaking");
-      voiceSocket.off("force_mute");
       voiceSocket.off("user_joined");
       voiceSocket.off("offer");
       voiceSocket.off("answer");
       voiceSocket.off("ice_candidate");
     };
-  }, []);
+  }, []); // Empty array — listeners persist
 
-  const adminMuteUser = (sid) => {
-    voiceSocket.emit("force_mute", { sid });
+  // ============================
+  // MUTE TOGGLE
+  // ============================
+  const toggleMute = () => {
+    if (!localStream.current || role !== "user") return;
+    const enabled = isMuted;
+    localStream.current.getAudioTracks().forEach((t) => (t.enabled = enabled));
+    setIsMuted(!enabled);
+    addNotification(enabled ? "Microphone unmuted" : "Microphone muted", "info");
   };
+
+  const isCurrentUserSpeaking = currentUserSid ? speakingUsers[currentUserSid] : false;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-purple-50 relative">
       <Navbar />
       <div className="flex pt-16">
         <SideBar />
-        
-        {/* Main content with dynamic margin to avoid sidebar overlap */}
+
         <motion.div
           className="flex-1"
-          animate={{ marginLeft: '240px' }}  // Matches open sidebar width
+          animate={{ marginLeft: '240px' }}
           transition={{ duration: 0.4, ease: 'easeInOut' }}
         >
           <div className="px-6 py-12 max-w-7xl mx-auto">
@@ -397,7 +416,7 @@ export default function UserVoiceRooms() {
             </div>
 
             {/* Tip */}
-            <div className="text-center">
+            <div className="text-center mb-12">
               <p className="text-gray-600 bg-white/70 backdrop-blur px-6 py-3 rounded-full inline-block shadow">
                 💡 Click a room to join instantly!
               </p>
@@ -405,7 +424,7 @@ export default function UserVoiceRooms() {
 
             {/* Active Room */}
             {activeRoom && (
-              <div className="mt-20 bg-white rounded-3xl shadow-2xl p-10">
+              <div className="bg-white rounded-3xl shadow-2xl p-10">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-4">
                     <span className="bg-green-100 text-green-800 px-5 py-2 rounded-full font-bold flex items-center gap-2">
@@ -420,19 +439,14 @@ export default function UserVoiceRooms() {
                     </div>
                   </div>
                   <span className="text-xl font-semibold text-gray-700">
-                    {roomUsers.length} participants
+                    {roomUsers.length} participant{roomUsers.length !== 1 ? 's' : ''}
                   </span>
                 </div>
 
-                {roomUsers.length === 0 ? (
-                  <div className="text-center py-16">
-                    <Radio className="mx-auto text-gray-300 mb-6" size={80} />
-                    <p className="text-2xl text-gray-600 font-medium">You're the first one here!</p>
-                    <p className="text-gray-500 mt-3">Wait for others to join</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {roomUsers.map((u) => (
+                {/* Participant List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {roomUsers.length > 0 ? (
+                    roomUsers.map((u) => (
                       <div
                         key={u.sid}
                         className={`relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
@@ -460,19 +474,16 @@ export default function UserVoiceRooms() {
                           </p>
                           <p className="text-xs text-gray-500 font-mono">{u.sid.slice(0, 8)}</p>
                         </div>
-
-                        {role === "admin" && u.role === "user" && u.sid !== currentUserSid && (
-                          <button
-                            onClick={() => adminMuteUser(u.sid)}
-                            className="text-red-600 hover:text-red-800 font-medium text-sm"
-                          >
-                            Mute
-                          </button>
-                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center py-12">
+                      <Radio className="mx-auto text-gray-300 mb-6" size={80} />
+                      <p className="text-2xl text-gray-600 font-medium">You're the first one here!</p>
+                      <p className="text-gray-500 mt-3">Wait for others to join</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -481,60 +492,62 @@ export default function UserVoiceRooms() {
 
       {/* Bottom Controls */}
       {activeRoom && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t px-6 py-5 shadow-2xl">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              {role === "user" && (
-                <>
-                  <button
-                    onClick={toggleMute}
-                    className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition ${
-                      isMuted
-                        ? "bg-red-100 text-red-700 hover:bg-red-200"
-                        : "bg-green-600 text-white hover:bg-green-700"
-                    }`}
-                  >
-                    {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                    {isMuted ? "Muted" : "Speaking"}
-                  </button>
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t shadow-2xl z-50">
+          <div className="pl-64 px-6 py-5">
+            <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-8">
+                {role === "user" && (
+                  <>
+                    <button
+                      onClick={toggleMute}
+                      className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition ${
+                        isMuted
+                          ? "bg-red-100 text-red-700 hover:bg-red-200"
+                          : "bg-green-600 text-white hover:bg-green-700"
+                      }`}
+                    >
+                      {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                      {isMuted ? "Muted" : "Speaking"}
+                    </button>
 
-                  {!isMuted && (
-                    <div className="flex items-end gap-1 h-8">
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className={`w-1 bg-green-500 rounded-full transition-all duration-300 ${
-                            isCurrentUserSpeaking ? "h-8" : "h-3"
-                          }`}
-                          style={{
-                            animation: isCurrentUserSpeaking ? "wave 1.2s ease-in-out infinite" : "none",
-                            animationDelay: `${i * 0.1}s`,
-                          }}
-                        />
-                      ))}
+                    {!isMuted && (
+                      <div className="flex items-end gap-1 h-8">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <div
+                            key={i}
+                            className={`w-1 bg-green-500 rounded-full transition-all duration-300 ${
+                              isCurrentUserSpeaking ? "h-8" : "h-3"
+                            }`}
+                            style={{
+                              animation: isCurrentUserSpeaking ? "wave 1.2s ease-in-out infinite" : "none",
+                              animationDelay: `${i * 0.1}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    <div className={`flex items-center gap-2 ${isCurrentUserSpeaking ? "text-green-600" : "text-gray-500"}`}>
+                      <div className={`w-3 h-3 rounded-full ${isCurrentUserSpeaking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+                      <span className="font-medium">
+                        {isCurrentUserSpeaking ? "You are speaking" : "Quiet"}
+                      </span>
                     </div>
-                  )}
-
-                  <div className={`flex items-center gap-2 ${isCurrentUserSpeaking ? "text-green-600" : "text-gray-500"}`}>
-                    <div className={`w-3 h-3 rounded-full ${isCurrentUserSpeaking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
-                    <span className="font-medium">
-                      {isCurrentUserSpeaking ? "You are speaking" : "Quiet"}
-                    </span>
-                  </div>
-                </>
-              )}
-              <div className="text-gray-600">
-                <span className="font-medium">Room:</span> {activeRoom}
+                  </>
+                )}
+                <div className="text-gray-600">
+                  <span className="font-medium">Room:</span> {activeRoom}
+                </div>
               </div>
-            </div>
 
-            <button
-              onClick={leaveRoom}
-              className="flex items-center gap-3 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition"
-            >
-              <LogOut size={20} />
-              Leave Room
-            </button>
+              <button
+                onClick={leaveRoom}
+                className="flex items-center gap-3 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition"
+              >
+                <LogOut size={20} />
+                Leave Room
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -561,7 +574,8 @@ export default function UserVoiceRooms() {
         ))}
       </div>
 
-      <style jsx>{`
+      {/* Fixed JSX warning */}
+      <style>{`
         @keyframes wave {
           0%, 100% { height: 0.75rem; }
           50% { height: 2rem; }

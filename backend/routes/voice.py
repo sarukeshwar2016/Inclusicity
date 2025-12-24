@@ -2,169 +2,132 @@ from flask import request
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from routes.auth import decode_jwt
 
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins="*", async_mode="eventlet")
 
 ALLOWED_ROOMS = ["movies", "music", "sports", "general"]
 
-# ============================
-# IN-MEMORY ROOM STATE
-# ============================
-room_users = {}        # room -> { sid: {name, role} }
-muted_users = set()    # sids muted by admin
+# room -> {sid: {"name": str, "role": str}}
+room_users = {}
 
-# ============================
-# JOIN ROOM (PRESENCE)
-# ============================
 @socketio.on("join_room")
-def join_voice(data):
+def handle_join(data):
     token = data.get("token")
     room = data.get("room")
-    display_name = data.get("name", "Guest")  # <-- Now accepting and using name
 
     if not token or room not in ALLOWED_ROOMS:
         emit("error", {"msg": "Invalid request"})
         return
 
     try:
-        user = decode_jwt(token)
-    except Exception:
+        payload = decode_jwt(token)
+        name = payload.get("name") or payload.get("username") or payload.get("email", "Guest").split("@")[0]
+        role = payload.get("role", "user")
+    except Exception as e:
+        print("JWT decode error:", e)
         emit("error", {"msg": "Invalid token"})
         return
 
-    if user.get("role") not in ["user", "admin"]:
-        emit("error", {"msg": "Unauthorized role"})
-        return
-
+    sid = request.sid
     join_room(room)
 
     # Initialize room if needed
-    room_users.setdefault(room, {})
+    if room not in room_users:
+        room_users[room] = {}
 
-    # Store user with name and role
-    room_users[room][request.sid] = {
-        "name": display_name,
-        "role": user.get("role")
-    }
+    was_first = len(room_users[room]) == 0
+    room_users[room][sid] = {"name": name, "role": role}
 
-    # Notify others (for WebRTC peer setup)
-    emit(
-        "user_joined",
-        {"sid": request.sid},
-        room=room,
-        include_self=False
-    )
+    # 1. Send full updated list to EVERYONE (including self)
+    user_list = [
+        {"sid": s, "name": info["name"], "role": info["role"]}
+        for s, info in room_users[room].items()
+    ]
+    emit("room_users", {"users": user_list}, room=room)
 
-    # Send full updated user list WITH NAMES to everyone (including self)
-    emit(
-        "room_users",
-        {
-            "users": [
-                {
-                    "sid": sid,
-                    "name": info["name"],
-                    "role": info["role"]
-                }
-                for sid, info in room_users[room].items()
-            ]
-        },
-        room=room
-    )
+    # 2. Tell OTHER users a new peer arrived → triggers offer from existing users
+    if not was_first:
+        emit("user_joined", {"sid": sid}, room=room, include_self=False)
+
+    # 3. Tell the NEW user about EXISTING peers → new user creates offers to them
+    for existing_sid in room_users[room]:
+        if existing_sid != sid:
+            emit("user_joined", {"sid": existing_sid}, to=sid)
+
+    print(f"User {name} ({sid}) joined {room}. Total: {len(user_list)}")
 
 
-# ============================
-# LEAVE ROOM (PRESENCE)
-# ============================
 @socketio.on("leave_room")
-def leave_voice(data):
+def handle_leave(data):
     room = data.get("room")
+    sid = request.sid
 
-    if room not in room_users or request.sid not in room_users[room]:
-        return
+    if room in room_users and sid in room_users[room]:
+        name = room_users[room][sid]["name"]
+        del room_users[room][sid]
 
-    # Remove user
-    del room_users[room][request.sid]
+        # Notify everyone
+        emit("user_left", {"sid": sid}, room=room)
 
-    # Notify others that user left
-    emit("user_left", {"sid": request.sid}, room=room)
+        # Send updated list
+        user_list = [
+            {"sid": s, "name": info["name"], "role": info["role"]}
+            for s, info in room_users[room].items()
+        ]
+        emit("room_users", {"users": user_list}, room=room)
 
-    # Send updated list
-    remaining_users = room_users.get(room, {})
-    emit(
-        "room_users",
-        {
-            "users": [
-                {
-                    "sid": sid,
-                    "name": info["name"],
-                    "role": info["role"]
-                }
-                for sid, info in remaining_users.items()
-            ]
-        },
-        room=room
-    )
+        if not room_users[room]:
+            del room_users[room]
 
-    # Clean up empty room
-    if not remaining_users:
-        del room_users[room]
+        print(f"User {name} ({sid}) left {room}. Remaining: {len(user_list)}")
 
     leave_room(room)
 
 
-# ============================
-# SPEAKING INDICATOR
-# ============================
 @socketio.on("speaking")
-def speaking_event(data):
+def handle_speaking(data):
     room = data.get("room")
     is_speaking = data.get("isSpeaking", False)
-
-    emit(
-        "speaking",
-        {
-            "sid": request.sid,
-            "isSpeaking": is_speaking
-        },
-        room=room,
-        include_self=False
-    )
+    emit("speaking", {"sid": request.sid, "isSpeaking": is_speaking}, room=room, include_self=False)
 
 
-# ============================
-# ADMIN FORCE MUTE
-# ============================
-@socketio.on("force_mute")
-def force_mute(data):
-    target_sid = data.get("sid")
-    if not target_sid:
-        return
-
-    muted_users.add(target_sid)
-    emit("force_mute", {"sid": target_sid}, to=target_sid)
-
-
-# ============================
-# WEBRTC SIGNALING (UNCHANGED)
-# ============================
 @socketio.on("offer")
 def handle_offer(data):
-    emit("offer", {
-        "from": request.sid,
-        "offer": data["offer"]
-    }, to=data["to"])
+    to = data.get("to")
+    if to:
+        emit("offer", {"from": request.sid, "offer": data["offer"]}, to=to)
 
 
 @socketio.on("answer")
 def handle_answer(data):
-    emit("answer", {
-        "from": request.sid,
-        "answer": data["answer"]
-    }, to=data["to"])
+    to = data.get("to")
+    if to:
+        emit("answer", {"from": request.sid, "answer": data["answer"]}, to=to)
 
 
 @socketio.on("ice_candidate")
 def handle_ice(data):
-    emit("ice_candidate", {
-        "from": request.sid,
-        "candidate": data["candidate"]
-    }, to=data["to"])
+    to = data.get("to")
+    if to:
+        emit("ice_candidate", {"from": request.sid, "candidate": data["candidate"]}, to=to)
+
+
+@socketio.on("disconnect")
+def handle_disconnect():
+    sid = request.sid
+    for room in list(room_users.keys()):
+        if sid in room_users[room]:
+            name = room_users[room][sid]["name"]
+            del room_users[room][sid]
+
+            emit("user_left", {"sid": sid}, room=room)
+
+            user_list = [
+                {"sid": s, "name": info["name"], "role": info["role"]}
+                for s, info in room_users[room].items()
+            ]
+            emit("room_users", {"users": user_list}, room=room)
+
+            if not room_users[room]:
+                del room_users[room]
+
+            print(f"Disconnect: {name} ({sid}) from {room}")

@@ -10,12 +10,12 @@ const SideBar = () => {
   const links = [
     {
       name: 'Home',
-      path: '/user/dashboard',
+      path: '/user/home',          // ← NEW: Separate Home page
       icon: <Home size={20} />,
     },
     {
       name: 'Request',
-      path: '/user/dashboard', // or '/user/requests' if separate
+      path: '/user/dashboard',     // ← Keeps pointing to dashboard (requests page)
       icon: <FileText size={20} />,
     },
     {

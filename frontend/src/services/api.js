@@ -96,36 +96,30 @@ export const adminAPI = {
 // SOCKET.IO (SINGLE INSTANCE)
 // =========================================================
 export const voiceSocket = io(API_BASE_URL, {
-  autoConnect: false,
+  withCredentials: true,
+  autoConnect: true,        // ← CHANGE: Connect automatically
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
 });
 
 // =========================================================
-// VOICE ROOM HELPERS (USER ONLY)
+// VOICE ROOM HELPERS
 // =========================================================
-// ... existing axios code ...
-
-export const joinVoiceRoom = (room, name, role) => {
-  if (!voiceSocket.connected) {
-    voiceSocket.connect();
-  }
-
+export const joinVoiceRoom = (room, displayName, role) => {
+  // Socket connects automatically due to autoConnect: true
   voiceSocket.emit("join_room", {
     token: localStorage.getItem("token"),
     room,
-    name,
-    role, // ✅ Pass the real name to the server
-  }); 
+  });
 };
 
 export const leaveVoiceRoom = ({ room }) => {
-  if (voiceSocket.connected) {
-    voiceSocket.emit("leave_room", { room });
-    voiceSocket.disconnect(); // ✅ Triggers the 'disconnect' cleanup on server
-  }
+  voiceSocket.emit("leave_room", { room });
+  // DO NOT disconnect() — keep socket alive for future rooms!
 };
-// 🔥 DEBUG ONLY – expose socket for console testing
+
+// 🔥 DEBUG: Expose for console testing
 window.voiceSocket = voiceSocket;
 window.joinVoiceRoom = joinVoiceRoom;
 window.leaveVoiceRoom = leaveVoiceRoom;
-
-export default api;

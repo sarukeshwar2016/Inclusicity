@@ -1,29 +1,29 @@
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate, NavLink, useLocation } from 'react-router-dom';
 import {
   LogOut,
   User,
   Radio,
-  Map,
   LayoutDashboard
 } from 'lucide-react';
 
 const Navbar = () => {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // ================= ROLE BASED ROUTES =================
-  const dashboardRoute =
-    role === 'admin'
-      ? '/admin/dashboard'
-      : role === 'helper'
-      ? '/helper/dashboard'
-      : '/user/dashboard';
+  // ================= ACTIVE CHECK FOR DASHBOARD =================
+  // Dashboard is active on: /user/home, /user/dashboard, /user/map
+  const isDashboardActive = [
+    '/user/home',
+    '/user/dashboard',
+    '/user/map'
+  ].includes(location.pathname);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
@@ -51,16 +51,14 @@ const Navbar = () => {
           {role && (
             <div className="hidden md:flex items-center space-x-2">
 
-              {/* Dashboard */}
+              {/* Dashboard - Active on Home, Dashboard & Map */}
               <NavLink
-                to={dashboardRoute}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                    isActive
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`
-                }
+                to="/user/home"  // Clicking goes to Home, but active state covers multiple paths
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                  isDashboardActive
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
               >
                 <LayoutDashboard size={18} />
                 Dashboard

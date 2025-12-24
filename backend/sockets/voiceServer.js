@@ -4,25 +4,33 @@ io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
   socket.on("join_room", ({ room, role, name }) => {
-  socket.join(room);
 
-  if (!rooms[room]) {
-    rooms[room] = {};
-  }
+    // 🔍 TEMP LOG — Step 2.1
+    console.log("JOIN_ROOM EVENT:", {
+      sid: socket.id,
+      room,
+      role,
+      name,
+    });
 
-  rooms[room][socket.id] = {
-    sid: socket.id,
-    name: name || "Anonymous", // ✅ STORE NAME
-    role,
-  };
+    socket.join(room);
 
-  io.to(room).emit("room_users", {
-    users: Object.values(rooms[room]),
+    if (!rooms[room]) {
+      rooms[room] = {};
+    }
+
+    rooms[room][socket.id] = {
+      sid: socket.id,
+      name: name || "Anonymous",
+      role,
+    };
+
+    io.to(room).emit("room_users", {
+      users: Object.values(rooms[room]),
+    });
+
+    socket.to(room).emit("user_joined", { sid: socket.id });
   });
-
-  socket.to(room).emit("user_joined", { sid: socket.id });
-});
-
 
   socket.on("leave_room", ({ room }) => {
     cleanupUserFromRoom(socket, room);
@@ -60,22 +68,19 @@ io.on("connection", (socket) => {
 
 function cleanupUserFromRoom(socket, room) {
   if (rooms[room] && rooms[room][socket.id]) {
-    // Remove user from memory
     delete rooms[room][socket.id];
     socket.leave(room);
 
-    // 1. Tell others to close this specific WebRTC peer connection
     io.to(room).emit("user_left", { sid: socket.id });
 
-    // 2. Broadcast updated list so the name disappears from everyone's UI
     io.to(room).emit("room_users", {
       users: Object.values(rooms[room]),
     });
 
-    // Clean up empty room objects
     if (Object.keys(rooms[room]).length === 0) {
       delete rooms[room];
     }
+
     console.log(`Cleaned up ${socket.id} from ${room}`);
   }
 }

@@ -14,8 +14,11 @@ import UserDashboard from './pages/UserDashboard';
 import HelperDashboard from './pages/HelperDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 
-// ✅ MAP PAGE (IMPORT WAS MISSING)
+// Map Page
 import UserMap from './pages/UserMap';
+
+// NEW: Home Page for users
+import UserHome from './pages/UserHome';  // ← Add this import
 
 function App() {
   return (
@@ -37,14 +40,25 @@ function App() {
               </PrivateRoute>
             }
           />
-<Route
-  path="/user/voice"
-  element={
-    <PrivateRoute allowedRoles={["user","admin"]}>
-      <UserVoiceRooms />
-    </PrivateRoute>
-  }
-/>
+
+          {/* NEW: User Home Route */}
+          <Route
+            path="/user/home"
+            element={
+              <PrivateRoute allowedRoles={['user']}>
+                <UserHome />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/user/voice"
+            element={
+              <PrivateRoute allowedRoles={["user", "admin"]}>
+                <UserVoiceRooms />
+              </PrivateRoute>
+            }
+          />
 
           <Route
             path="/user/map"
@@ -73,8 +87,8 @@ function App() {
                 <AdminDashboard />
               </PrivateRoute>
             }
-            
           />
+
           {/* ================= FALLBACK ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

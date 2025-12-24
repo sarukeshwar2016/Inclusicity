@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, send_file
 from flask_pymongo import PyMongo
 from flask_cors import CORS
 from flask_restx import Api
@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 import os
 
 from flask_socketio import SocketIO
-from routes.voice import socketio
+from routes.voice import socketio  # This is your socketio instance
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
 
 # -------------------- CORS --------------------
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -72,13 +72,24 @@ api.add_namespace(requests_ns, path="/requests")
 api.add_namespace(admin_ns, path="/admin")
 api.add_namespace(ratings_ns, path="/ratings")
 
-# -------------------- Root --------------------
-@app.route("/")
-def home():
-    return "InclusiCity backend running"
+# -------------------- Serve React Frontend --------------------
+FRONTEND_DIST = os.path.join(os.path.dirname(BASE_DIR), "frontend", "dist")
 
-# -------------------- Socket.IO (INIT AT END) --------------------
-socketio.init_app(app, cors_allowed_origins="*")
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST, path)):
+        return send_from_directory(FRONTEND_DIST, path)
+    else:
+        return send_file(os.path.join(FRONTEND_DIST, "index.html"))
+
+# -------------------- Root (for API check) --------------------
+@app.route("/api")
+def api_root():
+    return {"message": "InclusiCity backend running"}
+
+# -------------------- Socket.IO Init --------------------
+socketio.init_app(app, cors_allowed_origins="*", async_mode="eventlet")
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
