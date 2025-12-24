@@ -9,7 +9,7 @@ ALLOWED_ROOMS = ["movies", "music", "sports", "general"]
 # ============================
 # IN-MEMORY ROOM STATE
 # ============================
-room_users = {}        # room -> { sid: {role} }
+room_users = {}        # room -> { sid: {name, role} }
 muted_users = set()    # sids muted by admin
 
 # ============================
@@ -19,6 +19,7 @@ muted_users = set()    # sids muted by admin
 def join_voice(data):
     token = data.get("token")
     room = data.get("room")
+    display_name = data.get("name", "Guest")  # <-- Now accepting and using name
 
     if not token or room not in ALLOWED_ROOMS:
         emit("error", {"msg": "Invalid request"})
@@ -36,34 +37,39 @@ def join_voice(data):
 
     join_room(room)
 
-    # init room
+    # Initialize room if needed
     room_users.setdefault(room, {})
+
+    # Store user with name and role
     room_users[room][request.sid] = {
+        "name": display_name,
         "role": user.get("role")
     }
 
-    # notify others
+    # Notify others (for WebRTC peer setup)
     emit(
         "user_joined",
-        {
-            "sid": request.sid,
-            "role": user.get("role")
-        },
+        {"sid": request.sid},
         room=room,
         include_self=False
     )
 
-    # send updated presence list
+    # Send full updated user list WITH NAMES to everyone (including self)
     emit(
         "room_users",
         {
             "users": [
-                {"sid": sid, "role": info["role"]}
+                {
+                    "sid": sid,
+                    "name": info["name"],
+                    "role": info["role"]
+                }
                 for sid, info in room_users[room].items()
             ]
         },
         room=room
     )
+
 
 # ============================
 # LEAVE ROOM (PRESENCE)
@@ -72,27 +78,38 @@ def join_voice(data):
 def leave_voice(data):
     room = data.get("room")
 
-    if room in room_users and request.sid in room_users[room]:
-        del room_users[room][request.sid]
+    if room not in room_users or request.sid not in room_users[room]:
+        return
 
-        emit(
-            "user_left",
-            {"sid": request.sid},
-            room=room
-        )
+    # Remove user
+    del room_users[room][request.sid]
 
-        emit(
-            "room_users",
-            {
-                "users": [
-                    {"sid": sid, "role": info["role"]}
-                    for sid, info in room_users[room].items()
-                ]
-            },
-            room=room
-        )
+    # Notify others that user left
+    emit("user_left", {"sid": request.sid}, room=room)
+
+    # Send updated list
+    remaining_users = room_users.get(room, {})
+    emit(
+        "room_users",
+        {
+            "users": [
+                {
+                    "sid": sid,
+                    "name": info["name"],
+                    "role": info["role"]
+                }
+                for sid, info in remaining_users.items()
+            ]
+        },
+        room=room
+    )
+
+    # Clean up empty room
+    if not remaining_users:
+        del room_users[room]
 
     leave_room(room)
+
 
 # ============================
 # SPEAKING INDICATOR
@@ -112,23 +129,19 @@ def speaking_event(data):
         include_self=False
     )
 
+
 # ============================
 # ADMIN FORCE MUTE
 # ============================
 @socketio.on("force_mute")
 def force_mute(data):
     target_sid = data.get("sid")
-
     if not target_sid:
         return
 
     muted_users.add(target_sid)
+    emit("force_mute", {"sid": target_sid}, to=target_sid)
 
-    emit(
-        "force_mute",
-        {"sid": target_sid},
-        to=target_sid
-    )
 
 # ============================
 # WEBRTC SIGNALING (UNCHANGED)
