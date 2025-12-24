@@ -30,31 +30,26 @@ def handle_join(data):
     sid = request.sid
     join_room(room)
 
-    # Initialize room if needed
     if room not in room_users:
         room_users[room] = {}
 
     was_first = len(room_users[room]) == 0
     room_users[room][sid] = {"name": name, "role": role}
 
-    # 1. Send full updated list to EVERYONE (including self)
     user_list = [
         {"sid": s, "name": info["name"], "role": info["role"]}
         for s, info in room_users[room].items()
     ]
     emit("room_users", {"users": user_list}, room=room)
 
-    # 2. Tell OTHER users a new peer arrived → triggers offer from existing users
     if not was_first:
         emit("user_joined", {"sid": sid}, room=room, include_self=False)
 
-    # 3. Tell the NEW user about EXISTING peers → new user creates offers to them
     for existing_sid in room_users[room]:
         if existing_sid != sid:
             emit("user_joined", {"sid": existing_sid}, to=sid)
 
     print(f"User {name} ({sid}) joined {room}. Total: {len(user_list)}")
-
 
 @socketio.on("leave_room")
 def handle_leave(data):
@@ -65,10 +60,8 @@ def handle_leave(data):
         name = room_users[room][sid]["name"]
         del room_users[room][sid]
 
-        # Notify everyone
         emit("user_left", {"sid": sid}, room=room)
 
-        # Send updated list
         user_list = [
             {"sid": s, "name": info["name"], "role": info["role"]}
             for s, info in room_users[room].items()
@@ -82,13 +75,11 @@ def handle_leave(data):
 
     leave_room(room)
 
-
 @socketio.on("speaking")
 def handle_speaking(data):
     room = data.get("room")
     is_speaking = data.get("isSpeaking", False)
     emit("speaking", {"sid": request.sid, "isSpeaking": is_speaking}, room=room, include_self=False)
-
 
 @socketio.on("offer")
 def handle_offer(data):
@@ -96,20 +87,17 @@ def handle_offer(data):
     if to:
         emit("offer", {"from": request.sid, "offer": data["offer"]}, to=to)
 
-
 @socketio.on("answer")
 def handle_answer(data):
     to = data.get("to")
     if to:
         emit("answer", {"from": request.sid, "answer": data["answer"]}, to=to)
 
-
 @socketio.on("ice_candidate")
 def handle_ice(data):
     to = data.get("to")
     if to:
         emit("ice_candidate", {"from": request.sid, "candidate": data["candidate"]}, to=to)
-
 
 @socketio.on("disconnect")
 def handle_disconnect():
@@ -131,3 +119,18 @@ def handle_disconnect():
                 del room_users[room]
 
             print(f"Disconnect: {name} ({sid}) from {room}")
+
+@socketio.on("sos_alert")
+def handle_sos_alert(data):
+    username = data.get("username", "Unknown User")
+    role = data.get("role", "unknown")
+    message = data.get("message")
+    timestamp = data.get("timestamp")
+
+    print("\n" + "=" * 80)
+    print("🚨🚨🚨 EMERGENCY SOS ALERT 🚨🚨🚨")
+    print(f"   User: {username}")
+    print(f"   Role: {role}")
+    print(f"   Message: {message}")
+    print(f"   Time: {timestamp}")
+    print("=" * 80 + "\n")
