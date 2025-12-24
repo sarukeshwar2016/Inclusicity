@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Mic, MicOff, LogOut, Radio, Users, Volume2, UserPlus, UserMinus, Headphones } from "lucide-react";
 import Navbar from "../components/Navbar";
 import SideBar from "../components/SideBar";
+import { motion } from 'framer-motion';
 
 const rooms = ["movies", "music", "sports", "general"];
 
@@ -318,238 +319,246 @@ export default function UserVoiceRooms() {
       <Navbar />
       <div className="flex pt-16">
         <SideBar />
-        <div className="flex-1 px-6 py-12 max-w-7xl mx-auto">
-          {/* Hero */}
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-4 bg-white/80 backdrop-blur px-8 py-4 rounded-full mb-8 shadow-xl">
-              <Radio className="text-purple-600 animate-pulse" size={36} />
-              <span className="text-2xl font-bold text-purple-900">Live Voice Chat</span>
+        
+        {/* Main content with dynamic margin to avoid sidebar overlap */}
+        <motion.div
+          className="flex-1"
+          animate={{ marginLeft: '240px' }}  // Matches open sidebar width
+          transition={{ duration: 0.4, ease: 'easeInOut' }}
+        >
+          <div className="px-6 py-12 max-w-7xl mx-auto">
+            {/* Hero */}
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-4 bg-white/80 backdrop-blur px-8 py-4 rounded-full mb-8 shadow-xl">
+                <Radio className="text-purple-600 animate-pulse" size={36} />
+                <span className="text-2xl font-bold text-purple-900">Live Voice Chat</span>
+              </div>
+              <h1 className="text-5xl font-extrabold text-gray-900 mb-6">
+                Join a Voice Room
+              </h1>
+              <p className="text-xl text-gray-700 max-w-3xl mx-auto">
+                Hang out and talk in real-time. Discuss movies, share music, debate sports, or just chill.
+              </p>
             </div>
-            <h1 className="text-5xl font-extrabold text-gray-900 mb-6">
-              Join a Voice Room
-            </h1>
-            <p className="text-xl text-gray-700 max-w-3xl mx-auto">
-              Hang out and talk in real-time. Discuss movies, share music, debate sports, or just chill.
-            </p>
-          </div>
 
-          {/* Room Grid - Balanced Size & Thematic Colors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
-            {rooms.map((r) => {
-              const count = roomCounts[r] || 0;
-              const isActive = activeRoom === r;
+            {/* Room Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
+              {rooms.map((r) => {
+                const count = roomCounts[r] || 0;
+                const isActive = activeRoom === r;
 
-              return (
-                <button
-                  key={r}
-                  onClick={() => startVoice(r)}
-                  disabled={isActive}
-                  className={`group relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 ${
-                    isActive ? "ring-4 ring-purple-500" : ""
-                  }`}
-                >
-                  <div className={`h-full bg-gradient-to-br ${roomGradients[r]} p-8 text-white flex flex-col justify-between`}>
-                    <div>
-                      <Headphones className="mx-auto mb-6" size={60} />
-                      <h3 className="text-2xl font-bold capitalize mb-4">{r}</h3>
-                      <p className="text-base opacity-90 leading-relaxed">
-                        {roomDescriptions[r]}
-                      </p>
-                    </div>
-
-                    <div className="mt-8">
-                      <div className="bg-white/20 backdrop-blur px-5 py-3 rounded-full mb-4">
-                        <span className="font-bold text-xl">{count}</span>
-                        <span className="ml-2">live</span>
+                return (
+                  <button
+                    key={r}
+                    onClick={() => startVoice(r)}
+                    disabled={isActive}
+                    className={`group relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 ${
+                      isActive ? "ring-4 ring-purple-500" : ""
+                    }`}
+                  >
+                    <div className={`h-full bg-gradient-to-br ${roomGradients[r]} p-8 text-white flex flex-col justify-between`}>
+                      <div>
+                        <Headphones className="mx-auto mb-6" size={60} />
+                        <h3 className="text-2xl font-bold capitalize mb-4">{r}</h3>
+                        <p className="text-base opacity-90 leading-relaxed">
+                          {roomDescriptions[r]}
+                        </p>
                       </div>
 
-                      {count > 0 && (
-                        <div className="absolute top-4 right-4">
-                          <span className="relative flex h-4 w-4">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
-                          </span>
+                      <div className="mt-8">
+                        <div className="bg-white/20 backdrop-blur px-5 py-3 rounded-full mb-4">
+                          <span className="font-bold text-xl">{count}</span>
+                          <span className="ml-2">live</span>
                         </div>
-                      )}
 
-                      {isActive ? (
-                        <div className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold">
-                          You're Here 🎉
-                        </div>
-                      ) : (
-                        <div className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold opacity-0 group-hover:opacity-100 transition">
-                          Join Room →
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                        {count > 0 && (
+                          <div className="absolute top-4 right-4">
+                            <span className="relative flex h-4 w-4">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+                            </span>
+                          </div>
+                        )}
 
-          {/* Tip */}
-          <div className="text-center">
-            <p className="text-gray-600 bg-white/70 backdrop-blur px-6 py-3 rounded-full inline-block shadow">
-              💡 Click a room to join instantly!
-            </p>
-          </div>
-
-          {/* Active Room */}
-          {activeRoom && (
-            <div className="mt-20 bg-white rounded-3xl shadow-2xl p-10">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
-                  <span className="bg-green-100 text-green-800 px-5 py-2 rounded-full font-bold flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                    LIVE
-                  </span>
-                  <div>
-                    <h3 className="text-3xl font-bold">
-                      {activeRoom.charAt(0).toUpperCase() + activeRoom.slice(1)} Room
-                    </h3>
-                    <p className="text-gray-600 mt-1">{roomDescriptions[activeRoom]}</p>
-                  </div>
-                </div>
-                <span className="text-xl font-semibold text-gray-700">
-                  {roomUsers.length} participants
-                </span>
-              </div>
-
-              {roomUsers.length === 0 ? (
-                <div className="text-center py-16">
-                  <Radio className="mx-auto text-gray-300 mb-6" size={80} />
-                  <p className="text-2xl text-gray-600 font-medium">You're the first one here!</p>
-                  <p className="text-gray-500 mt-3">Wait for others to join</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {roomUsers.map((u) => (
-                    <div
-                      key={u.sid}
-                      className={`relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                        speakingUsers[u.sid]
-                          ? "border-green-400 bg-green-50 shadow-xl"
-                          : "border-gray-200 bg-gray-50"
-                      } ${u.sid === currentUserSid ? "ring-4 ring-blue-300" : ""}`}
-                    >
-                      <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-2xl shadow-xl">
-                          {(u.name || "??").trim().split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
-                        </div>
-                        {speakingUsers[u.sid] && (
-                          <>
-                            <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-75"></span>
-                            <span className="absolute inset-0 rounded-full bg-green-500 animate-pulse opacity-50"></span>
-                          </>
+                        {isActive ? (
+                          <div className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold">
+                            You're Here 🎉
+                          </div>
+                        ) : (
+                          <div className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold opacity-0 group-hover:opacity-100 transition">
+                            Join Room →
+                          </div>
                         )}
                       </div>
-
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-800">
-                          {u.name || "Anonymous"}
-                          {u.sid === currentUserSid && <span className="text-blue-600 text-sm ml-2">(You)</span>}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">{u.sid.slice(0, 8)}</p>
-                      </div>
-
-                      {role === "admin" && u.role === "user" && u.sid !== currentUserSid && (
-                        <button
-                          onClick={() => adminMuteUser(u.sid)}
-                          className="text-red-600 hover:text-red-800 font-medium text-sm"
-                        >
-                          Mute
-                        </button>
-                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </button>
+                );
+              })}
             </div>
-          )}
 
-          {/* Bottom Controls */}
-          {activeRoom && (
-            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t px-6 py-5 shadow-2xl">
-              <div className="max-w-6xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-8">
-                  {role === "user" && (
-                    <>
-                      <button
-                        onClick={toggleMute}
-                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition ${
-                          isMuted
-                            ? "bg-red-100 text-red-700 hover:bg-red-200"
-                            : "bg-green-600 text-white hover:bg-green-700"
-                        }`}
-                      >
-                        {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                        {isMuted ? "Muted" : "Speaking"}
-                      </button>
+            {/* Tip */}
+            <div className="text-center">
+              <p className="text-gray-600 bg-white/70 backdrop-blur px-6 py-3 rounded-full inline-block shadow">
+                💡 Click a room to join instantly!
+              </p>
+            </div>
 
-                      {!isMuted && (
-                        <div className="flex items-end gap-1 h-8">
-                          {[0, 1, 2, 3, 4].map((i) => (
-                            <div
-                              key={i}
-                              className={`w-1 bg-green-500 rounded-full transition-all duration-300 ${
-                                isCurrentUserSpeaking ? "h-8" : "h-3"
-                              }`}
-                              style={{
-                                animation: isCurrentUserSpeaking ? "wave 1.2s ease-in-out infinite" : "none",
-                                animationDelay: `${i * 0.1}s`,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      <div className={`flex items-center gap-2 ${isCurrentUserSpeaking ? "text-green-600" : "text-gray-500"}`}>
-                        <div className={`w-3 h-3 rounded-full ${isCurrentUserSpeaking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
-                        <span className="font-medium">
-                          {isCurrentUserSpeaking ? "You are speaking" : "Quiet"}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                  <div className="text-gray-600">
-                    <span className="font-medium">Room:</span> {activeRoom}
+            {/* Active Room */}
+            {activeRoom && (
+              <div className="mt-20 bg-white rounded-3xl shadow-2xl p-10">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <span className="bg-green-100 text-green-800 px-5 py-2 rounded-full font-bold flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                      LIVE
+                    </span>
+                    <div>
+                      <h3 className="text-3xl font-bold">
+                        {activeRoom.charAt(0).toUpperCase() + activeRoom.slice(1)} Room
+                      </h3>
+                      <p className="text-gray-600 mt-1">{roomDescriptions[activeRoom]}</p>
+                    </div>
                   </div>
+                  <span className="text-xl font-semibold text-gray-700">
+                    {roomUsers.length} participants
+                  </span>
                 </div>
 
-                <button
-                  onClick={leaveRoom}
-                  className="flex items-center gap-3 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition"
-                >
-                  <LogOut size={20} />
-                  Leave Room
-                </button>
+                {roomUsers.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Radio className="mx-auto text-gray-300 mb-6" size={80} />
+                    <p className="text-2xl text-gray-600 font-medium">You're the first one here!</p>
+                    <p className="text-gray-500 mt-3">Wait for others to join</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {roomUsers.map((u) => (
+                      <div
+                        key={u.sid}
+                        className={`relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                          speakingUsers[u.sid]
+                            ? "border-green-400 bg-green-50 shadow-xl"
+                            : "border-gray-200 bg-gray-50"
+                        } ${u.sid === currentUserSid ? "ring-4 ring-blue-300" : ""}`}
+                      >
+                        <div className="relative">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-2xl shadow-xl">
+                            {(u.name || "??").trim().split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+                          </div>
+                          {speakingUsers[u.sid] && (
+                            <>
+                              <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-75"></span>
+                              <span className="absolute inset-0 rounded-full bg-green-500 animate-pulse opacity-50"></span>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-800">
+                            {u.name || "Anonymous"}
+                            {u.sid === currentUserSid && <span className="text-blue-600 text-sm ml-2">(You)</span>}
+                          </p>
+                          <p className="text-xs text-gray-500 font-mono">{u.sid.slice(0, 8)}</p>
+                        </div>
+
+                        {role === "admin" && u.role === "user" && u.sid !== currentUserSid && (
+                          <button
+                            onClick={() => adminMuteUser(u.sid)}
+                            className="text-red-600 hover:text-red-800 font-medium text-sm"
+                          >
+                            Mute
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Bottom Controls */}
+      {activeRoom && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t px-6 py-5 shadow-2xl">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              {role === "user" && (
+                <>
+                  <button
+                    onClick={toggleMute}
+                    className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition ${
+                      isMuted
+                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}
+                  >
+                    {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                    {isMuted ? "Muted" : "Speaking"}
+                  </button>
+
+                  {!isMuted && (
+                    <div className="flex items-end gap-1 h-8">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className={`w-1 bg-green-500 rounded-full transition-all duration-300 ${
+                            isCurrentUserSpeaking ? "h-8" : "h-3"
+                          }`}
+                          style={{
+                            animation: isCurrentUserSpeaking ? "wave 1.2s ease-in-out infinite" : "none",
+                            animationDelay: `${i * 0.1}s`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className={`flex items-center gap-2 ${isCurrentUserSpeaking ? "text-green-600" : "text-gray-500"}`}>
+                    <div className={`w-3 h-3 rounded-full ${isCurrentUserSpeaking ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+                    <span className="font-medium">
+                      {isCurrentUserSpeaking ? "You are speaking" : "Quiet"}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div className="text-gray-600">
+                <span className="font-medium">Room:</span> {activeRoom}
               </div>
             </div>
-          )}
 
-          {activeRoom && <div className="pb-28" />}
-
-          {/* Toasts */}
-          <div className="fixed top-20 right-6 space-y-3 z-50">
-            {notifications.map((notif) => (
-              <div
-                key={notif.id}
-                className={`flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl text-white font-medium animate-slide-in-right ${
-                  notif.type === "join" ? "bg-green-600" :
-                  notif.type === "leave" ? "bg-orange-600" :
-                  notif.type === "success" ? "bg-blue-600" :
-                  notif.type === "warning" ? "bg-red-600" :
-                  "bg-gray-800"
-                }`}
-              >
-                {notif.type === "join" && <UserPlus size={20} />}
-                {notif.type === "leave" && <UserMinus size={20} />}
-                <span>{notif.message}</span>
-              </div>
-            ))}
+            <button
+              onClick={leaveRoom}
+              className="flex items-center gap-3 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold transition"
+            >
+              <LogOut size={20} />
+              Leave Room
+            </button>
           </div>
         </div>
+      )}
+
+      {activeRoom && <div className="pb-28" />}
+
+      {/* Toasts */}
+      <div className="fixed top-20 right-6 space-y-3 z-50">
+        {notifications.map((notif) => (
+          <div
+            key={notif.id}
+            className={`flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl text-white font-medium animate-slide-in-right ${
+              notif.type === "join" ? "bg-green-600" :
+              notif.type === "leave" ? "bg-orange-600" :
+              notif.type === "success" ? "bg-blue-600" :
+              notif.type === "warning" ? "bg-red-600" :
+              "bg-gray-800"
+            }`}
+          >
+            {notif.type === "join" && <UserPlus size={20} />}
+            {notif.type === "leave" && <UserMinus size={20} />}
+            <span>{notif.message}</span>
+          </div>
+        ))}
       </div>
 
       <style jsx>{`
