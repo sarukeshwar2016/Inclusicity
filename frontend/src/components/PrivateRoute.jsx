@@ -20,8 +20,11 @@ const PrivateRoute = ({ children, allowedRoles }) => {
 
   // 🚫 Logged in but wrong role → Home
   if (allowedRoles && !allowedRoles.includes(role)) {
-    return <Navigate to="/" replace />;
-  }
+    if (role === 'user') return <Navigate to="/user/home" replace />;
+    if (role === 'helper') return <Navigate to="/helper/dashboard" replace />;
+    if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+}
+
 
   // ✅ Authorized
   return children;

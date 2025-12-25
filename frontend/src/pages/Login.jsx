@@ -34,7 +34,7 @@ const Login = () => {
 
     try {
       const role = await login(email, password);
-      if (role === 'user') navigate('/user/dashboard');
+      if (role === 'user') navigate('/user/home');
       else if (role === 'helper') navigate('/helper/dashboard');
       else if (role === 'admin') navigate('/admin/dashboard');
     } catch (err) {
