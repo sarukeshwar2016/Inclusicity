@@ -87,9 +87,14 @@ export const ratingsAPI = {
 // ADMIN APIs
 // =========================================================
 export const adminAPI = {
+  // Existing admin features
   getStats: () => api.get("/admin/stats"),
   getPendingHelpers: () => api.get("/admin/helpers/pending"),
   verifyHelper: (id) => api.patch(`/admin/helpers/${id}/verify`),
+
+  // 🔥 SOS features
+  getSOS: () => api.get("/admin/sos"),
+  resolveSOS: (id) => api.patch(`/admin/sos/${id}/resolve`),
 };
 
 // =========================================================
@@ -117,6 +122,9 @@ export const joinVoiceRoom = (room, displayName, role) => {
 export const leaveVoiceRoom = ({ room }) => {
   voiceSocket.emit("leave_room", { room });
   // DO NOT disconnect() — keep socket alive for future rooms!
+};
+export const sosAPI = {
+  send: (data) => api.post("/sos", data),
 };
 
 // 🔥 DEBUG: Expose for console testing

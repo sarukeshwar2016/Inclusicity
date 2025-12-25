@@ -4,9 +4,10 @@ from flask_cors import CORS
 from flask_restx import Api
 from dotenv import load_dotenv
 import os
-
+from routes.sos import sos_bp
 from flask_socketio import SocketIO
 from routes.voice import socketio  # This is your socketio instance
+from flask_jwt_extended import JWTManager
 
 load_dotenv()
 
@@ -19,6 +20,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 app.config["JWT_ALGORITHM"] = "HS256"
 app.config["JWT_EXPIRY_HOURS"] = 24
+jwt = JWTManager(app)
 
 # -------------------- EMAIL --------------------
 app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
@@ -61,11 +63,14 @@ from routes.auth import auth_bp, auth_ns
 from routes.requests import requests_bp, requests_ns
 from routes.admin import admin_bp, admin_ns
 from routes.ratings import ratings_bp, ratings_ns
+from routes.sos import sos_bp
 
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(requests_bp, url_prefix="/requests")
 app.register_blueprint(admin_bp, url_prefix="/admin")
 app.register_blueprint(ratings_bp, url_prefix="/ratings")
+app.register_blueprint(sos_bp)  # 🔥 THIS WAS MISSING
+
 
 api.add_namespace(auth_ns, path="/auth")
 api.add_namespace(requests_ns, path="/requests")

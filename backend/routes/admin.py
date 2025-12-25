@@ -3,6 +3,7 @@ from flask_restx import Namespace, Resource, fields
 from bson import ObjectId
 from utils.email import send_helper_verified_email
 from routes.auth import jwt_required, role_required
+from datetime import datetime
 
 # =========================================================
 # Blueprint & Swagger Namespace
@@ -145,6 +146,43 @@ def platform_stats():
     }
 
     return jsonify(stats), 200
+@admin_bp.route("/sos", methods=["GET"])
+@jwt_required
+@role_required("admin")
+def get_all_sos():
+    db = get_db()
+
+    sos_list = list(
+        db.sos_alerts.find().sort("created_at", -1)
+    )
+
+    # Convert ObjectId → string
+    for sos in sos_list:
+        sos["_id"] = str(sos["_id"])
+
+    return jsonify({
+        "sos": sos_list
+    }), 200
+@admin_bp.route("/sos/<sos_id>/resolve", methods=["PATCH"])
+@jwt_required
+@role_required("admin")
+def resolve_sos(sos_id):
+    db = get_db()
+
+    result = db.sos_alerts.update_one(
+        {"_id": ObjectId(sos_id)},
+        {
+            "$set": {
+                "status": "resolved",
+                "resolved_at": datetime.utcnow()
+            }
+        }
+    )
+
+    if result.matched_count == 0:
+        return jsonify({"error": "SOS not found"}), 404
+
+    return jsonify({"message": "SOS resolved successfully"}), 200
 
 
 # =========================================================

@@ -120,17 +120,3 @@ def handle_disconnect():
 
             print(f"Disconnect: {name} ({sid}) from {room}")
 
-@socketio.on("sos_alert")
-def handle_sos_alert(data):
-    username = data.get("username", "Unknown User")
-    role = data.get("role", "unknown")
-    message = data.get("message")
-    timestamp = data.get("timestamp")
-
-    print("\n" + "=" * 80)
-    print("🚨🚨🚨 EMERGENCY SOS ALERT 🚨🚨🚨")
-    print(f"   User: {username}")
-    print(f"   Role: {role}")
-    print(f"   Message: {message}")
-    print(f"   Time: {timestamp}")
-    print("=" * 80 + "\n")
