@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { requestsAPI, ratingsAPI, authAPI } from '../services/api';
-import Navbar from '../components/Navbar';
+import HelperNavbar from '../components/HelperNavbar';
+import HelperSidebar from '../components/HelperSidebar'; // ← Added HelperSidebar
 import { Power, MapPin, Star, Clock } from 'lucide-react';
 
 const HelperDashboard = () => {
@@ -17,16 +18,13 @@ const HelperDashboard = () => {
     try {
       setLoading(true);
 
-      // Role check
       const meRes = await authAPI.getMe();
       if (meRes.data?.user?.role !== 'helper') return;
 
-      // Availability
       const helperRes = await authAPI.getHelperMe();
       const available = helperRes.data.available === true;
       setIsAvailable(available);
 
-      // Ratings
       try {
         const ratingsRes = await ratingsAPI.getMy();
         setAvgRating(ratingsRes.data?.avg_rating ?? null);
@@ -36,7 +34,6 @@ const HelperDashboard = () => {
         setTotalReviews(0);
       }
 
-      // Available requests
       let pending = [];
       if (available) {
         const res = await requestsAPI.getAvailable();
@@ -46,7 +43,6 @@ const HelperDashboard = () => {
         }));
       }
 
-      // Accepted requests
       const myRes = await requestsAPI.getMy();
       const accepted = (myRes.data.requests || []).filter(
         r => r.status === 'accepted'
@@ -90,22 +86,22 @@ const HelperDashboard = () => {
       alert(err.response?.data?.error || 'Failed to accept request');
     }
   };
-  const handleCancelRequest = async (id) => {
-  try {
-    await requestsAPI.cancelByHelper(id);
-    await loadDashboard();
-  } catch (err) {
-    alert(err.response?.data?.error || 'Failed to cancel request');
-  }
-};
 
+  const handleCancelRequest = async (id) => {
+    try {
+      await requestsAPI.cancelByHelper(id);
+      await loadDashboard();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to cancel request');
+    }
+  };
 
   const handleCompleteRequest = async (id) => {
     try {
       await requestsAPI.complete(id);
       await loadDashboard();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to complete ride');
+      alert(err.response?.data?.error || 'Failed to complete request');
     }
   };
 
@@ -114,125 +110,147 @@ const HelperDashboard = () => {
   // =========================================================
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-24">
-        <Navbar />
-        <div className="flex justify-center items-center h-96 text-xl text-gray-600">
-          Loading...
+      <div className="min-h-screen bg-gray-50 flex">
+        <HelperSidebar />
+        <div className="flex-1">
+          <HelperNavbar />
+          <div className="flex justify-center items-center h-screen text-xl text-gray-600">
+            Loading...
+          </div>
         </div>
       </div>
     );
   }
 
   // =========================================================
-  // UI
+  // MAIN UI
   // =========================================================
   return (
-    <div className="min-h-screen bg-gray-50 pt-24">
-      <Navbar />
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-gray-50 flex">
+      {/* Sidebar */}
+      <HelperSidebar />
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Main Content Area */}
+      <div className="flex-1 ml-0 md:ml-20 lg:ml-60 transition-all duration-300">
+        <HelperNavbar />
 
-        {/* HEADER */}
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-bold">Helper Dashboard</h2>
-            <p className="text-gray-600">Manage requests</p>
-          </div>
-
-          <button
-            onClick={handleToggleAvailability}
-            className={`px-6 py-3 rounded-lg flex items-center gap-2 ${
-              isAvailable
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-300 text-gray-700'
-            }`}
-          >
-            <Power size={20} />
-            {isAvailable ? 'Available' : 'Offline'}
-          </button>
-        </div>
-
-        {/* PERFORMANCE */}
-        <div className="bg-white p-6 rounded-xl shadow mb-6 flex justify-between items-center">
-          <div>
-            <h3 className="font-semibold">Your Performance</h3>
-            <p className="text-gray-600">{totalReviews} reviews</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Star className="text-yellow-500" fill="currentColor" />
-            <span className="text-3xl font-bold">{avgRating ?? '—'}</span>
-          </div>
-        </div>
-
-        {/* REQUEST LIST */}
-        <div className="space-y-4">
-          {requests.length === 0 ? (
-            <div className="bg-white p-12 text-center rounded-xl shadow">
-              No requests available
+        <div className="max-w-5xl mx-auto px-4 py-12 pt-28">
+          {/* HEADER */}
+          <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900">Helper Dashboard</h1>
+              <p className="text-lg text-gray-600 mt-2">Ready to make a difference today?</p>
             </div>
-          ) : (
-            requests.map(req => (
-              <div key={req.request_id} className="bg-white p-6 rounded-xl shadow">
 
-                <div className="flex items-center gap-3 mb-1">
-                  <MapPin className="text-blue-600" />
-                  <h3 className="text-xl font-semibold">{req.city}</h3>
-                </div>
+            <button
+              onClick={handleToggleAvailability}
+              className={`px-8 py-4 rounded-xl flex items-center gap-3 text-lg font-semibold shadow-lg transition ${
+                isAvailable
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+              }`}
+            >
+              <Power size={24} />
+              {isAvailable ? 'Available for Requests' : 'Go Online'}
+            </button>
+          </div>
 
-                {req.user_name && (
-                  <p className="text-sm text-gray-500">
-                    Requested by <b>{req.user_name}</b>
-                  </p>
-                )}
+          {/* PERFORMANCE CARD */}
+          <div className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-xl mb-10 flex flex-col sm:flex-row justify-between items-center gap-6">
+            <div>
+              <h3 className="text-2xl font-semibold text-gray-800">Your Impact</h3>
+              <p className="text-gray-600 mt-1">{totalReviews} people helped & reviewed</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Star className="text-yellow-500 w-12 h-12" fill="currentColor" />
+              <span className="text-5xl font-bold text-gray-900">
+                {avgRating ? avgRating.toFixed(1) : '—'}
+              </span>
+            </div>
+          </div>
 
-                {req.needed_date && req.needed_time && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 my-2">
-                    <Clock size={16} />
-                    {req.needed_date} at {req.needed_time}
-                  </div>
-                )}
+          {/* REQUEST LIST */}
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            {requests.length > 0 ? 'Current Requests' : 'No Active Requests'}
+          </h2>
 
-                <p className="text-sm text-gray-500">
-                  Pickup: {req.pickup_address}
+          <div className="space-y-6">
+            {requests.length === 0 ? (
+              <div className="bg-white/80 backdrop-blur-sm p-16 text-center rounded-2xl shadow-lg border border-gray-200">
+                <p className="text-xl text-gray-600">
+                  {isAvailable
+                    ? 'No requests right now — relax, they’ll come!'
+                    : 'Go online to start receiving requests'}
                 </p>
-                <p className="text-sm text-gray-500 mb-2">
-                  Destination: {req.destination_address}
-                </p>
-
-                <p className="text-gray-700 mb-3">{req.need}</p>
-
-                {req.status === 'pending' && (
-                  <button
-                    onClick={() => handleAcceptRequest(req.request_id)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Accept
-                  </button>
-                )}
-
-  {req.status === 'accepted' && (
-  <div className="flex gap-3">
-    <button
-      onClick={() => handleCompleteRequest(req.request_id)}
-      className="bg-green-600 text-white px-4 py-2 rounded-lg"
-    >
-      Complete
-    </button>
-
-    <button
-      onClick={() => handleCancelRequest(req.request_id)}
-      className="bg-red-600 text-white px-4 py-2 rounded-lg"
-    >
-      Cancel
-    </button>
-  </div>
-)}
-
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              requests.map(req => (
+                <div
+                  key={req.request_id}
+                  className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-gray-100"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <MapPin className="text-indigo-600 w-6 h-6" />
+                        <h3 className="text-2xl font-bold text-gray-900">{req.city}</h3>
+                      </div>
 
+                      {req.user_name && (
+                        <p className="text-lg text-gray-700 mb-2">
+                          Requested by <span className="font-semibold">{req.user_name}</span>
+                        </p>
+                      )}
+
+                      {req.needed_date && req.needed_time && (
+                        <div className="flex items-center gap-2 text-gray-600 mb-3">
+                          <Clock size={18} />
+                          <span className="font-medium">{req.needed_date} at {req.needed_time}</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-1 text-gray-700">
+                        <p><span className="font-medium">Pickup:</span> {req.pickup_address}</p>
+                        <p><span className="font-medium">Destination:</span> {req.destination_address}</p>
+                      </div>
+
+                      <p className="mt-4 text-gray-800 italic">"{req.need}"</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      {req.status === 'pending' && (
+                        <button
+                          onClick={() => handleAcceptRequest(req.request_id)}
+                          className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
+                        >
+                          Accept Request
+                        </button>
+                      )}
+
+                      {req.status === 'accepted' && (
+                        <>
+                          <button
+                            onClick={() => handleCompleteRequest(req.request_id)}
+                            className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition"
+                          >
+                            Mark as Complete
+                          </button>
+
+                          <button
+                            onClick={() => handleCancelRequest(req.request_id)}
+                            className="bg-red-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-700 transition"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
