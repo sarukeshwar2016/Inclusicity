@@ -126,6 +126,15 @@ export const leaveVoiceRoom = ({ room }) => {
 export const sosAPI = {
   send: (data) => api.post("/sos", data),
 };
+// =========================================================
+// PROFILE APIs
+// =========================================================
+export const profileAPI = {
+  create: (data) => api.post("/profile", data),
+  get: () => api.get("/profile"),
+  update: (data) => api.put("/profile", data),
+};
+
 
 // 🔥 DEBUG: Expose for console testing
 window.voiceSocket = voiceSocket;

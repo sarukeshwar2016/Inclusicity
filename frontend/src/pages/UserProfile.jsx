@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from "../components/Navbar";
 import SideBar from "../components/SideBar";
 import SOSButton from "../components/SOSButton";
 import { motion } from "framer-motion";
+import { profileAPI } from "../services/api";
 
 const UserProfile = () => {
   const [formData, setFormData] = useState({
@@ -17,6 +18,33 @@ const UserProfile = () => {
     emergencyName: '',
     emergencyPhone: '',
   });
+
+  // 1. Fetch profile data on component mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await profileAPI.get();
+        if (res.data) {
+          setFormData(prev => ({
+            ...prev,
+            ...res.data,
+            // Mapping nested emergency contact from API to flat form state
+            emergencyName: res.data.emergencyContact?.name || "",
+            emergencyPhone: res.data.emergencyContact?.phone || "",
+            // Format date for <input type="date"> (YYYY-MM-DD)
+            dateOfBirth: res.data.dateOfBirth ? res.data.dateOfBirth.split('T')[0] : ""
+          }));
+        }
+      } catch (err) {
+        // Ignore 404s - means user hasn't created a profile yet
+        if (err.response?.status !== 404) {
+          console.error("Failed to load profile", err);
+        }
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,9 +61,39 @@ const UserProfile = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  // 2. Updated handleSubmit with Create/Update (Upsert) Logic
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert('Profile saved successfully! 🎉');
+
+    const payload = {
+      ...formData,
+      emergencyContact: {
+        name: formData.emergencyName,
+        phone: formData.emergencyPhone
+      }
+    };
+
+    try {
+      // Try updating the existing profile
+      await profileAPI.update(payload);
+      alert("Profile updated successfully ✅");
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          // If profile doesn't exist, create it
+          await profileAPI.create(payload);
+          alert("Profile saved successfully 🎉");
+        } catch (createErr) {
+          alert(createErr.response?.data?.error || "Failed to create profile");
+        }
+      } else {
+        console.error(err);
+        alert(
+          err.response?.data?.error ||
+          "Failed to save profile. Please try again."
+        );
+      }
+    }
   };
 
   return (
@@ -50,7 +108,6 @@ const UserProfile = () => {
           transition={{ duration: 0.4, ease: "easeInOut" }}
         >
           <div className="px-6 py-12 max-w-5xl mx-auto">
-            {/* Clean, welcoming header */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -66,7 +123,7 @@ const UserProfile = () => {
 
             <form onSubmit={handleSubmit} className="space-y-12">
 
-              {/* About You */}
+              {/* About You Section */}
               <section className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 md:p-12 border border-gray-100">
                 <h2 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                   <span className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 text-2xl">👤</span>
@@ -100,7 +157,7 @@ const UserProfile = () => {
                       value={formData.preferredName}
                       onChange={handleChange}
                       className="w-full px-6 py-4 text-lg bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition"
-                      placeholder="How you'd like to be known in the community"
+                      placeholder="How you'd like to be known"
                     />
                   </div>
 
@@ -150,16 +207,12 @@ const UserProfile = () => {
                 </div>
               </section>
 
-              {/* Support Needs */}
+              {/* Support Needs Section */}
               <section className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 md:p-12 border border-gray-100">
                 <h2 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                   <span className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl">🤝</span>
                   How Can We Support You Better?
                 </h2>
-                <p className="text-lg text-gray-600 mb-10 max-w-3xl">
-                  Choose any that apply. This helps us personalize your experience and match you with the right help.
-                </p>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div>
                     <p className="text-xl font-semibold text-gray-800 mb-6">Accessibility Needs</p>
@@ -170,7 +223,7 @@ const UserProfile = () => {
                             type="checkbox"
                             name="primaryNeeds"
                             value={need}
-                            checked={formData.primaryNeeds.includes(need)}
+                            checked={formData.primaryNeeds?.includes(need)}
                             onChange={handleCheckbox}
                             className="w-7 h-7 text-indigo-600 rounded-lg focus:ring-indigo-500"
                           />
@@ -189,7 +242,7 @@ const UserProfile = () => {
                             type="checkbox"
                             name="communicationPrefs"
                             value={pref}
-                            checked={formData.communicationPrefs.includes(pref)}
+                            checked={formData.communicationPrefs?.includes(pref)}
                             onChange={handleCheckbox}
                             className="w-7 h-7 text-indigo-600 rounded-lg focus:ring-indigo-500"
                           />
@@ -201,17 +254,16 @@ const UserProfile = () => {
                 </div>
               </section>
 
-              {/* Safety & Tools */}
+              {/* Safety & Tools Section */}
               <section className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 md:p-12 border border-gray-100">
                 <h2 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                   <span className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-2xl">🛡️</span>
                   Safety & Tools
                 </h2>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div>
                     <p className="text-xl font-semibold text-gray-800 mb-6">
-                      Emergency Contact <span className="font-normal text-gray-500">(Highly recommended for SOS)</span>
+                      Emergency Contact <span className="font-normal text-gray-500">(Recommended for SOS)</span>
                     </p>
                     <input
                       type="text"
@@ -229,9 +281,6 @@ const UserProfile = () => {
                       placeholder="Phone number"
                       className="w-full px-6 py-4 text-lg bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition"
                     />
-                    <p className="mt-4 text-sm text-gray-600">
-                      This information is encrypted and only used when you tap the SOS button.
-                    </p>
                   </div>
 
                   <div>
@@ -243,7 +292,7 @@ const UserProfile = () => {
                             type="checkbox"
                             name="assistiveTools"
                             value={tool}
-                            checked={formData.assistiveTools.includes(tool)}
+                            checked={formData.assistiveTools?.includes(tool)}
                             onChange={handleCheckbox}
                             className="w-7 h-7 text-indigo-600 rounded-lg focus:ring-indigo-500"
                           />
@@ -255,7 +304,6 @@ const UserProfile = () => {
                 </div>
               </section>
 
-              {/* Submit */}
               <div className="text-center py-8">
                 <button
                   type="submit"
@@ -263,15 +311,11 @@ const UserProfile = () => {
                 >
                   Save Profile
                 </button>
-                <p className="mt-8 text-lg text-gray-600">
-                  You can update this anytime. Thank you for trusting us. ❤️
-                </p>
               </div>
             </form>
           </div>
         </motion.div>
       </div>
-
       <SOSButton />
     </div>
   );

@@ -8,7 +8,7 @@ from routes.sos import sos_bp
 from flask_socketio import SocketIO
 from routes.voice import socketio  # This is your socketio instance
 from flask_jwt_extended import JWTManager
-
+from routes.profile import profile_bp
 load_dotenv()
 
 app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
@@ -20,6 +20,9 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 app.config["JWT_ALGORITHM"] = "HS256"
 app.config["JWT_EXPIRY_HOURS"] = 24
+app.config["JWT_TOKEN_LOCATION"] = ["headers"]
+app.config["JWT_HEADER_NAME"] = "Authorization"
+app.config["JWT_HEADER_TYPE"] = "Bearer"
 jwt = JWTManager(app)
 
 # -------------------- EMAIL --------------------
@@ -70,7 +73,7 @@ app.register_blueprint(requests_bp, url_prefix="/requests")
 app.register_blueprint(admin_bp, url_prefix="/admin")
 app.register_blueprint(ratings_bp, url_prefix="/ratings")
 app.register_blueprint(sos_bp)  # 🔥 THIS WAS MISSING
-
+app.register_blueprint(profile_bp, url_prefix="/profile")
 
 api.add_namespace(auth_ns, path="/auth")
 api.add_namespace(requests_ns, path="/requests")
