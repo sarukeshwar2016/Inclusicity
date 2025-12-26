@@ -19,6 +19,7 @@ import UserMap from './pages/UserMap';
 
 // NEW: Home Page for users
 import UserHome from './pages/UserHome';  // ← Add this import
+import HelperHome from './pages/HelperHome';
 
 function App() {
   return (
@@ -70,14 +71,24 @@ function App() {
           />
 
           {/* ================= HELPER ROUTES ================= */}
-          <Route
-            path="/helper/dashboard"
-            element={
-              <PrivateRoute allowedRoles={['helper']}>
-                <HelperDashboard />
-              </PrivateRoute>
-            }
-          />
+{/* ================= HELPER ROUTES ================= */}
+<Route
+  path="/helper/home"
+  element={
+    <PrivateRoute allowedRoles={['helper']}>
+      <HelperHome />
+    </PrivateRoute>
+  }
+/>
+
+<Route
+  path="/helper/dashboard"
+  element={
+    <PrivateRoute allowedRoles={['helper']}>
+      <HelperDashboard />
+    </PrivateRoute>
+  }
+/>
 
           {/* ================= ADMIN ROUTES ================= */}
           <Route
