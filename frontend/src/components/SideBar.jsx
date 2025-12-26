@@ -27,13 +27,12 @@ const SideBar = () => {
       name: 'Profile',
       path: '/user/profile',
       icon: <User size={20} />,
-      disabled: true,
+      
     },
     {
       name: 'Settings',
       path: '/user/settings',
       icon: <Settings size={20} />,
-      disabled: true,
     },
   ];
 
