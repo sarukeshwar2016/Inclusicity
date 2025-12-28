@@ -4,7 +4,6 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
 from flask_restx import Namespace, Resource, fields
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from bson import ObjectId
 
@@ -49,6 +48,7 @@ def decode_jwt(token):
         current_app.config["JWT_SECRET_KEY"],
         algorithms=[current_app.config["JWT_ALGORITHM"]]
     )
+
 def decode_jwt_from_socket(token):
     try:
         return decode_jwt(token)
@@ -117,7 +117,6 @@ helper_signup_model = auth_ns.model("HelperSignup", {
     "age": fields.Integer(required=True),
     "city": fields.String(required=True),
     "phone": fields.String(required=True),
-    "ngo_id": fields.String(required=True),
     "skills": fields.List(fields.String, required=True),
     "experience": fields.String,
     "gender": fields.String
@@ -174,26 +173,17 @@ def signup_user():
 # =========================================================
 # HELPER SIGNUP
 # =========================================================
-
-
 @auth_bp.route("/signup/helper", methods=["POST"])
-
 def signup_helper():
-    print("FORM:", dict(request.form))
-    print("FILES:", request.files)
     db = get_db()
-
-    # multipart/form-data
+    
+    # Using request.form for consistency with multipart, 
+    # though JSON could also be used now that files are gone.
     form = request.form
-    files = request.files
 
     required = ["name", "email", "password", "age", "city", "phone", "skills"]
     if any(not form.get(k) for k in required):
         return jsonify({"error": "Missing required fields"}), 400
-
-    # Required documents
-    if "id_proof" not in files or "ngo_certificate" not in files:
-        return jsonify({"error": "ID proof and NGO certificate are required"}), 400
 
     email = form["email"].strip().lower()
 
@@ -216,30 +206,8 @@ def signup_helper():
     # ✅ HARD-CODE NGO ID (SAFE)
     DEFAULT_NGO_ID = "ngo_12345"
 
-    # File storage
-    helper_id = ObjectId()
-    base_path = os.path.join(
-        current_app.config["UPLOAD_FOLDER"],
-        "helpers",
-        str(helper_id)
-    )
-    os.makedirs(base_path, exist_ok=True)
-
-    id_file = files["id_proof"]
-    ngo_file = files["ngo_certificate"]
-
-    id_filename = secure_filename(id_file.filename)
-    ngo_filename = secure_filename(ngo_file.filename)
-
-    id_path = os.path.join(base_path, id_filename)
-    ngo_path = os.path.join(base_path, ngo_filename)
-
-    id_file.save(id_path)
-    ngo_file.save(ngo_path)
-
-    # DB insert
+    # DB insert with updated schema
     helper = {
-        "_id": helper_id,
         "name": form["name"],
         "email": email,
         "password": generate_password_hash(form["password"]),
@@ -247,33 +215,26 @@ def signup_helper():
         "city": form["city"],
         "phone": form["phone"],
         "skills": skills,
-        "ngo_id": DEFAULT_NGO_ID,
 
-"documents": {
-"id_proof": {
-    "filename": id_filename,
-    "path": f"helpers/{helper_id}/{id_filename}"
-},
-"ngo_certificate": {
-    "filename": ngo_filename,
-    "path": f"helpers/{helper_id}/{ngo_filename}"
-}
-
-}
-,
+        # 🔐 VERIFICATION SYSTEM
+        "verification_status": "draft",  # draft | submitted | verified | rejected
+        "profile_completed": False,
+        "documents": {},
 
         "verified": False,
         "available": False,
         "role": "helper",
-        "created_at": datetime.utcnow()
+        "ngo_id": DEFAULT_NGO_ID,
+
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
     }
 
     db.helpers.insert_one(helper)
 
     return jsonify({
-        "message": "Helper application submitted. Await admin verification."
+        "message": "Helper application submitted. Please complete your profile and verification."
     }), 201
-
 
 
 # =========================================================
@@ -293,7 +254,7 @@ def login():
     # USERS (user + admin)
     account = db.users.find_one({"email": email})
     if account:
-        role = account["role"]   # ❗ NO DEFAULT
+        role = account["role"]
     else:
         # HELPERS
         account = db.helpers.find_one({"email": email})
@@ -304,8 +265,7 @@ def login():
     if not check_password_hash(account["password"], password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    if role == "helper" and not account.get("verified"):
-        return jsonify({"error": "Helper not verified"}), 403
+    # ✅ Helper can now login even if not verified
 
     token = generate_jwt({
         "user_id": str(account["_id"]),
@@ -334,6 +294,13 @@ def toggle_availability():
 
     helper_id = ObjectId(request.user["user_id"])
 
+    # ✅ BLOCK going online if helper is not verified
+    helper = db.helpers.find_one({"_id": helper_id})
+    if not helper or helper.get("verification_status") != "verified":
+        return jsonify({
+            "error": "Helper verification not completed"
+        }), 403
+
     # 🔒 BLOCK going online if helper has active request
     if data["available"] is True:
         active_request = db.requests.find_one({
@@ -348,7 +315,7 @@ def toggle_availability():
 
     db.helpers.update_one(
         {"_id": helper_id},
-        {"$set": {"available": data["available"]}}
+        {"$set": {"available": data["available"], "updated_at": datetime.utcnow()}}
     )
 
     return jsonify({
@@ -365,7 +332,7 @@ def helper_me():
 
     helper = db.helpers.find_one(
         {"_id": ObjectId(request.user["user_id"])},
-        {"_id": 0, "available": 1, "city": 1, "verified": 1}
+        {"_id": 0, "available": 1, "city": 1, "verified": 1, "verification_status": 1}
     )
 
     if not helper:
@@ -387,7 +354,7 @@ def me():
 
 
 # =========================================================
-# Swagger Wrapper Routes (NO LOGIC DUPLICATION)
+# Swagger Wrapper Routes
 # =========================================================
 @auth_ns.route("/signup")
 class SwaggerUserSignup(Resource):

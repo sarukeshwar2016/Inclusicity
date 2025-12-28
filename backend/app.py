@@ -67,7 +67,9 @@ from routes.requests import requests_bp, requests_ns
 from routes.admin import admin_bp, admin_ns
 from routes.ratings import ratings_bp, ratings_ns
 from routes.sos import sos_bp
+from routes.helpers import helpers_bp
 
+app.register_blueprint(helpers_bp)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(requests_bp, url_prefix="/requests")
 app.register_blueprint(admin_bp, url_prefix="/admin")
