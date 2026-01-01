@@ -5,6 +5,12 @@ from flask import current_app
 
 
 def send_helper_verified_email(to_email, helper_name):
+    print(
+    "MAIL CHECK:",
+    current_app.config.get("MAIL_SERVER"),
+    current_app.config.get("MAIL_USERNAME")
+)
+
     subject = "InclusiCity – Helper Account Verified ✅"
 
     body = f"""
