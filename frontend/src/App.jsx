@@ -14,11 +14,12 @@ import UserDashboard from './pages/UserDashboard';
 import UserVoiceRooms from './pages/UserVoiceRooms';
 import UserMap from './pages/UserMap';
 import UserProfile from './pages/UserProfile';
-import UserSettings from './pages/UserSettings'; // ← Added
+import UserSettings from './pages/UserSettings';
 
 // Helper Pages
 import HelperHome from './pages/HelperHome';
 import HelperDashboard from './pages/HelperDashboard';
+import HelperProfile from './pages/HelperProfile'; // ✅ IMPORTED ACTUAL PAGE
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -89,7 +90,6 @@ function App() {
             }
           />
 
-          {/* Default redirect when accessing /user directly */}
           <Route
             path="/user"
             element={
@@ -118,12 +118,21 @@ function App() {
             }
           />
 
-          {/* Additional helper routes (placeholders for future pages) */}
+          {/* Verification-critical route */}
+          <Route
+            path="/helper/profile"
+            element={
+              <PrivateRoute allowedRoles={['helper']}>
+                <HelperProfile /> {/* ✅ REPLACED PLACEHOLDER */}
+              </PrivateRoute>
+            }
+          />
+
           <Route
             path="/helper/request"
             element={
               <PrivateRoute allowedRoles={['helper']}>
-                <HelperDashboard /> {/* Can be replaced with dedicated page later */}
+                <HelperDashboard />
               </PrivateRoute>
             }
           />
@@ -147,15 +156,6 @@ function App() {
           />
 
           <Route
-            path="/helper/profile"
-            element={
-              <PrivateRoute allowedRoles={['helper']}>
-                <div className="p-10 text-center text-2xl text-gray-600">Helper Profile (Coming Soon)</div>
-              </PrivateRoute>
-            }
-          />
-
-          <Route
             path="/helper/settings"
             element={
               <PrivateRoute allowedRoles={['helper']}>
@@ -164,7 +164,6 @@ function App() {
             }
           />
 
-          {/* Default redirect for helpers */}
           <Route
             path="/helper"
             element={

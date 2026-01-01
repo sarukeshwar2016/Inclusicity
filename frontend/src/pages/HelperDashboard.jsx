@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { requestsAPI, ratingsAPI, authAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { requestsAPI, ratingsAPI, authAPI } from '../services/api'; // ✅ Fixed Import Syntax
 import HelperNavbar from '../components/HelperNavbar';
-import HelperSidebar from '../components/HelperSidebar'; // ← Added HelperSidebar
-import { Power, MapPin, Star, Clock } from 'lucide-react';
+import HelperSidebar from '../components/HelperSidebar';
+import { Power, MapPin, Star, Clock, ShieldAlert, Hourglass, XCircle } from 'lucide-react';
 
 const HelperDashboard = () => {
   const [requests, setRequests] = useState([]);
   const [avgRating, setAvgRating] = useState(null);
   const [totalReviews, setTotalReviews] = useState(0);
   const [isAvailable, setIsAvailable] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null); 
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // =========================================================
   // LOAD DASHBOARD
@@ -22,33 +25,38 @@ const HelperDashboard = () => {
       if (meRes.data?.user?.role !== 'helper') return;
 
       const helperRes = await authAPI.getHelperMe();
-      const available = helperRes.data.available === true;
-      setIsAvailable(available);
+      const { available, verification_status } = helperRes.data;
+      
+      setIsAvailable(available === true);
+      setVerificationStatus(verification_status);
 
-      try {
-        const ratingsRes = await ratingsAPI.getMy();
-        setAvgRating(ratingsRes.data?.avg_rating ?? null);
-        setTotalReviews(ratingsRes.data?.total_reviews ?? 0);
-      } catch {
-        setAvgRating(null);
-        setTotalReviews(0);
+      // Only load performance and request data if helper is VERIFIED
+      if (verification_status === 'verified') {
+        try {
+          const ratingsRes = await ratingsAPI.getMy();
+          setAvgRating(ratingsRes.data?.avg_rating ?? null);
+          setTotalReviews(ratingsRes.data?.total_reviews ?? 0);
+        } catch {
+          setAvgRating(null);
+          setTotalReviews(0);
+        }
+
+        let pending = [];
+        if (available) {
+          const res = await requestsAPI.getAvailable();
+          pending = (res.data.available_requests || []).map(r => ({
+            ...r,
+            status: 'pending',
+          }));
+        }
+
+        const myRes = await requestsAPI.getMy();
+        const accepted = (myRes.data.requests || []).filter(
+          r => r.status === 'accepted'
+        );
+
+        setRequests([...pending, ...accepted]);
       }
-
-      let pending = [];
-      if (available) {
-        const res = await requestsAPI.getAvailable();
-        pending = (res.data.available_requests || []).map(r => ({
-          ...r,
-          status: 'pending',
-        }));
-      }
-
-      const myRes = await requestsAPI.getMy();
-      const accepted = (myRes.data.requests || []).filter(
-        r => r.status === 'accepted'
-      );
-
-      setRequests([...pending, ...accepted]);
 
     } catch (err) {
       console.error('Helper dashboard load failed:', err);
@@ -65,6 +73,10 @@ const HelperDashboard = () => {
   // TOGGLE AVAILABILITY
   // =========================================================
   const handleToggleAvailability = async () => {
+    if (verificationStatus !== 'verified') {
+      alert('You must be verified by admin before going online.');
+      return;
+    }
     try {
       const next = !isAvailable;
       await authAPI.toggleAvailability({ available: next });
@@ -106,7 +118,7 @@ const HelperDashboard = () => {
   };
 
   // =========================================================
-  // LOADING
+  // RENDER: LOADING
   // =========================================================
   if (loading) {
     return (
@@ -115,7 +127,7 @@ const HelperDashboard = () => {
         <div className="flex-1">
           <HelperNavbar />
           <div className="flex justify-center items-center h-screen text-xl text-gray-600">
-            Loading...
+            Loading Dashboard...
           </div>
         </div>
       </div>
@@ -123,19 +135,66 @@ const HelperDashboard = () => {
   }
 
   // =========================================================
-  // MAIN UI
+  // RENDER: UNVERIFIED STATES
+  // =========================================================
+  if (verificationStatus !== 'verified') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex">
+        <HelperSidebar />
+        <div className="flex-1 ml-0 md:ml-20 lg:ml-60 transition-all">
+          <HelperNavbar />
+          <div className="flex flex-col justify-center items-center h-screen px-6 text-center">
+            {verificationStatus === 'draft' && (
+              <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl border border-blue-100">
+                <ShieldAlert className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Complete Your Profile</h2>
+                <p className="text-gray-600 mb-6">You need to upload your ID proof and NGO certificate before you can start helping.</p>
+                <button 
+                  onClick={() => navigate('/helper/profile')}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition"
+                >
+                  Go to Profile
+                </button>
+              </div>
+            )}
+
+            {verificationStatus === 'submitted' && (
+              <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl border border-amber-100">
+                <Hourglass className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Under Review</h2>
+                <p className="text-gray-600">Our admins are currently verifying your documents. We'll notify you once you're approved!</p>
+              </div>
+            )}
+
+            {verificationStatus === 'rejected' && (
+              <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl border border-red-100">
+                <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Verification Rejected</h2>
+                <p className="text-gray-600 mb-6">Your application was not approved. Please check your profile and re-upload clear documents.</p>
+                <button 
+                   onClick={() => navigate('/helper/profile')}
+                   className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition"
+                >
+                  Update Documents
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // RENDER: FULL DASHBOARD (VERIFIED)
   // =========================================================
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-gray-50 flex">
-      {/* Sidebar */}
       <HelperSidebar />
-
-      {/* Main Content Area */}
       <div className="flex-1 ml-0 md:ml-20 lg:ml-60 transition-all duration-300">
         <HelperNavbar />
 
         <div className="max-w-5xl mx-auto px-4 py-12 pt-28">
-          {/* HEADER */}
           <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
             <div>
               <h1 className="text-4xl font-bold text-gray-900">Helper Dashboard</h1>
@@ -155,7 +214,6 @@ const HelperDashboard = () => {
             </button>
           </div>
 
-          {/* PERFORMANCE CARD */}
           <div className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-xl mb-10 flex flex-col sm:flex-row justify-between items-center gap-6">
             <div>
               <h3 className="text-2xl font-semibold text-gray-800">Your Impact</h3>
@@ -169,7 +227,6 @@ const HelperDashboard = () => {
             </div>
           </div>
 
-          {/* REQUEST LIST */}
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
             {requests.length > 0 ? 'Current Requests' : 'No Active Requests'}
           </h2>
@@ -185,35 +242,28 @@ const HelperDashboard = () => {
               </div>
             ) : (
               requests.map(req => (
-                <div
-                  key={req.request_id}
-                  className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-gray-100"
-                >
+                <div key={req.request_id} className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-gray-100">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         <MapPin className="text-indigo-600 w-6 h-6" />
                         <h3 className="text-2xl font-bold text-gray-900">{req.city}</h3>
                       </div>
-
                       {req.user_name && (
                         <p className="text-lg text-gray-700 mb-2">
                           Requested by <span className="font-semibold">{req.user_name}</span>
                         </p>
                       )}
-
                       {req.needed_date && req.needed_time && (
                         <div className="flex items-center gap-2 text-gray-600 mb-3">
                           <Clock size={18} />
                           <span className="font-medium">{req.needed_date} at {req.needed_time}</span>
                         </div>
                       )}
-
                       <div className="space-y-1 text-gray-700">
                         <p><span className="font-medium">Pickup:</span> {req.pickup_address}</p>
                         <p><span className="font-medium">Destination:</span> {req.destination_address}</p>
                       </div>
-
                       <p className="mt-4 text-gray-800 italic">"{req.need}"</p>
                     </div>
 
@@ -226,7 +276,6 @@ const HelperDashboard = () => {
                           Accept Request
                         </button>
                       )}
-
                       {req.status === 'accepted' && (
                         <>
                           <button
@@ -235,7 +284,6 @@ const HelperDashboard = () => {
                           >
                             Mark as Complete
                           </button>
-
                           <button
                             onClick={() => handleCancelRequest(req.request_id)}
                             className="bg-red-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-700 transition"
