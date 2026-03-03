@@ -62,15 +62,36 @@ const HelperProfile = () => {
   };
 
   // =========================================================
-  // SUBMIT FOR VERIFICATION
+  // Check if any file is selected
+  // =========================================================
+  const hasAnyFile = Object.values(files).some((f) => f !== null);
+
+  // =========================================================
+  // SUBMIT FOR VERIFICATION (auto-saves first)
   // =========================================================
   const handleSubmit = async () => {
+    if (!hasAnyFile) {
+      setError('Please upload at least one document before submitting.');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
     try {
+      // Step 1: Save profile + files first
+      const data = new FormData();
+      Object.entries(form).forEach(([k, v]) => {
+        if (v) data.append(k, v);
+      });
+      Object.entries(files).forEach(([k, v]) => {
+        if (v) data.append(k, v);
+      });
+      await helperAPI.updateProfile(data);
+
+      // Step 2: Submit for verification
       await helperAPI.submitVerification();
-      alert('Profile submitted for verification');
+      alert('Profile submitted for verification!');
       navigate('/helper/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Submission failed');
@@ -104,28 +125,54 @@ const HelperProfile = () => {
           </div>
 
           {/* FILE UPLOADS */}
-          <div className="space-y-4 mb-6">
-            <input type="file" name="aadhaar" onChange={handleFileChange} />
-            <input type="file" name="driving_license" onChange={handleFileChange} />
-            <input type="file" name="address_proof" onChange={handleFileChange} />
-            <input type="file" name="ngo_certificate" onChange={handleFileChange} />
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">Upload Documents</h2>
+          <div className="space-y-4 mb-6 bg-white p-5 rounded-xl border border-gray-200">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Aadhaar Card</label>
+              <input type="file" name="aadhaar" onChange={handleFileChange} className="w-full text-sm" />
+              {files.aadhaar && <p className="text-xs text-green-600 mt-1">✅ {files.aadhaar.name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Driving License</label>
+              <input type="file" name="driving_license" onChange={handleFileChange} className="w-full text-sm" />
+              {files.driving_license && <p className="text-xs text-green-600 mt-1">✅ {files.driving_license.name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Address Proof</label>
+              <input type="file" name="address_proof" onChange={handleFileChange} className="w-full text-sm" />
+              {files.address_proof && <p className="text-xs text-green-600 mt-1">✅ {files.address_proof.name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">NGO Certificate</label>
+              <input type="file" name="ngo_certificate" onChange={handleFileChange} className="w-full text-sm" />
+              {files.ngo_certificate && <p className="text-xs text-green-600 mt-1">✅ {files.ngo_certificate.name}</p>}
+            </div>
           </div>
+
+          {!hasAnyFile && (
+            <p className="text-sm text-amber-600 mb-4 font-medium">
+              ⚠️ Please upload at least one document to submit for verification.
+            </p>
+          )}
 
           <div className="flex gap-4">
             <button
               onClick={handleSave}
               disabled={loading}
-              className="px-6 py-3 bg-gray-700 text-white rounded"
+              className="px-6 py-3 bg-gray-700 text-white rounded hover:bg-gray-800 transition"
             >
-              Save
+              {loading ? 'Saving...' : 'Save'}
             </button>
 
             <button
               onClick={handleSubmit}
-              disabled={loading}
-              className="px-6 py-3 bg-green-600 text-white rounded"
+              disabled={loading || !hasAnyFile}
+              className={`px-6 py-3 text-white rounded transition ${hasAnyFile
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-gray-400 cursor-not-allowed'
+                }`}
             >
-              Submit for Verification
+              {loading ? 'Submitting...' : 'Submit for Verification'}
             </button>
           </div>
         </div>

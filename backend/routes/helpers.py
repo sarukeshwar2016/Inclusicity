@@ -199,6 +199,15 @@ def submit_verification():
     if helper.get("verification_status") == "verified":
         return jsonify({"message": "Already verified"}), 200
 
+    # ✅ Validate that documents were actually uploaded
+    documents = helper.get("documents", {})
+    gov_ids = documents.get("government_ids", {})
+
+    if not gov_ids and not documents.get("ngo_certificate") and not documents.get("address_proof"):
+        return jsonify({
+            "error": "Please upload at least one document (government ID, NGO certificate, or address proof) before submitting."
+        }), 400
+
     db.helpers.update_one(
         {"_id": helper_id},
         {"$set": {

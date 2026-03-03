@@ -205,26 +205,56 @@ const AdminDashboard = () => {
 
                       {helper.documents && (
                         <div className="flex flex-wrap gap-3 mt-4">
-                          {helper.documents.id_proof?.path && (
+                          {/* Government IDs */}
+                          {helper.documents.government_ids && Object.entries(helper.documents.government_ids).map(([key, doc]) => (
+                            doc?.file_url && (
+                              <a
+                                key={key}
+                                href={`${API_BASE}/uploads/${doc.file_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition"
+                              >
+                                📄 {key.replace(/_/g, ' ').toUpperCase()}
+                              </a>
+                            )
+                          ))}
+                          {/* Address Proof */}
+                          {helper.documents.address_proof?.file_url && (
                             <a
-                              href={`${API_BASE}/uploads/${helper.documents.id_proof.path}`}
+                              href={`${API_BASE}/uploads/${helper.documents.address_proof.file_url}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition"
+                              className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-full hover:bg-green-100 transition"
                             >
-                              📄 ID PROOF
+                              📄 ADDRESS PROOF
                             </a>
                           )}
-                          {helper.documents.ngo_certificate?.path && (
+                          {/* NGO Certificate */}
+                          {helper.documents.ngo_certificate?.file_url && (
                             <a
-                              href={`${API_BASE}/uploads/${helper.documents.ngo_certificate.path}`}
+                              href={`${API_BASE}/uploads/${helper.documents.ngo_certificate.file_url}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition"
+                              className="text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full hover:bg-purple-100 transition"
                             >
                               📄 NGO CERTIFICATE
                             </a>
                           )}
+                          {/* Past Experience */}
+                          {Array.isArray(helper.documents.past_experience) && helper.documents.past_experience.map((exp, idx) => (
+                            exp?.file_url && (
+                              <a
+                                key={idx}
+                                href={`${API_BASE}/uploads/${exp.file_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full hover:bg-amber-100 transition"
+                              >
+                                📄 EXPERIENCE #{idx + 1}
+                              </a>
+                            )
+                          ))}
                         </div>
                       )}
                     </div>
