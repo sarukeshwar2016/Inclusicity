@@ -22,9 +22,58 @@ const UserDashboard = () => {
     city: '', pickup_address: '', destination_address: '',
     phone: '', need: '', needed_date: '', needed_time: '',
   });
+  const [formErrors, setFormErrors] = useState({});
   const [ratingData, setRatingData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const todayStr = () => new Date().toISOString().split('T')[0];
+
+  const requestValidators = {
+    city: (v) => {
+      if (!v.trim()) return 'City is required.';
+      if (/\d/.test(v)) return 'City name must not contain numbers.';
+      return '';
+    },
+    pickup_address: (v) => (!v.trim() ? 'Pickup address is required.' : ''),
+    destination_address: (v) => (!v.trim() ? 'Destination address is required.' : ''),
+    phone: (v) => {
+      if (!v.trim()) return 'Phone number is required.';
+      if (!/^\+?[\d\s\-()]{7,15}$/.test(v)) return 'Please enter a valid phone number (e.g. +91 9876543210).';
+      return '';
+    },
+    need: (v) => {
+      if (!v.trim()) return 'Please describe what you need.';
+      if (v.trim().length < 10) return 'Please describe your need in at least 10 characters.';
+      return '';
+    },
+    needed_date: (v) => {
+      if (!v) return 'Please select a date.';
+      if (v < todayStr()) return 'Date cannot be in the past.';
+      return '';
+    },
+    needed_time: (v, date) => {
+      if (!v) return 'Please select a time.';
+      if (date === todayStr()) {
+        const now = new Date();
+        const [h, m] = v.split(':').map(Number);
+        const selected = new Date(); selected.setHours(h, m, 0, 0);
+        if (selected <= now) return 'Time cannot be in the past for today.';
+      }
+      return '';
+    },
+  };
+
+  const handleRequestChange = (field, value) => {
+    // Block numbers from city field
+    if (field === 'city' && /\d/.test(value)) return;
+    const updated = { ...newRequest, [field]: value };
+    setNewRequest(updated);
+    const err = field === 'needed_time'
+      ? requestValidators.needed_time(value, updated.needed_date)
+      : requestValidators[field]?.(value) || '';
+    setFormErrors(prev => ({ ...prev, [field]: err }));
+  };
 
   useEffect(() => { fetchRequests(); }, []);
 
@@ -38,9 +87,21 @@ const UserDashboard = () => {
 
   const handleCreateRequest = async (e) => {
     e.preventDefault();
+
+    // Run all validators
+    const newErrors = {};
+    Object.keys(requestValidators).forEach((field) => {
+      newErrors[field] = field === 'needed_time'
+        ? requestValidators.needed_time(newRequest[field], newRequest.needed_date)
+        : requestValidators[field](newRequest[field]);
+    });
+    setFormErrors(newErrors);
+    if (Object.values(newErrors).some((e) => e)) return;
+
     try {
       await requestsAPI.create(newRequest);
       setNewRequest({ city: '', pickup_address: '', destination_address: '', phone: '', need: '', needed_date: '', needed_time: '' });
+      setFormErrors({});
       setShowModal(false);
       fetchRequests();
     } catch (err) { alert(err.response?.data?.error || 'Failed to create request'); }
@@ -270,67 +331,94 @@ const UserDashboard = () => {
               </div>
 
               <form onSubmit={handleCreateRequest} className="space-y-4">
+                {/* CITY */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">City</label>
-                  <input type="text" placeholder="Your city" required
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                  <input type="text" placeholder="Your city"
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                      formErrors.city ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                    }`}
                     value={newRequest.city}
-                    onChange={(e) => setNewRequest({ ...newRequest, city: e.target.value })}
+                    onChange={(e) => handleRequestChange('city', e.target.value)}
                   />
+                  {formErrors.city && <p className="mt-1 text-xs text-red-600">{formErrors.city}</p>}
                 </div>
 
+                {/* PICKUP */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Pickup Address</label>
-                  <input type="text" placeholder="Where to pick you up" required
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                  <input type="text" placeholder="Where to pick you up"
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                      formErrors.pickup_address ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                    }`}
                     value={newRequest.pickup_address}
-                    onChange={(e) => setNewRequest({ ...newRequest, pickup_address: e.target.value })}
+                    onChange={(e) => handleRequestChange('pickup_address', e.target.value)}
                   />
+                  {formErrors.pickup_address && <p className="mt-1 text-xs text-red-600">{formErrors.pickup_address}</p>}
                 </div>
 
+                {/* DESTINATION */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Destination</label>
-                  <input type="text" placeholder="Where you need to go" required
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                  <input type="text" placeholder="Where you need to go"
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                      formErrors.destination_address ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                    }`}
                     value={newRequest.destination_address}
-                    onChange={(e) => setNewRequest({ ...newRequest, destination_address: e.target.value })}
+                    onChange={(e) => handleRequestChange('destination_address', e.target.value)}
                   />
+                  {formErrors.destination_address && <p className="mt-1 text-xs text-red-600">{formErrors.destination_address}</p>}
                 </div>
 
+                {/* PHONE */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Phone</label>
-                  <input type="tel" placeholder="+91 98765 43210" required
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                  <input type="tel" placeholder="+91 98765 43210"
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                      formErrors.phone ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                    }`}
                     value={newRequest.phone}
-                    onChange={(e) => setNewRequest({ ...newRequest, phone: e.target.value })}
+                    onChange={(e) => handleRequestChange('phone', e.target.value)}
                   />
+                  {formErrors.phone && <p className="mt-1 text-xs text-red-600">{formErrors.phone}</p>}
                 </div>
 
+                {/* NEED */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Reason / Need</label>
-                  <textarea placeholder="e.g. Hospital visit, grocery shopping..." rows="2" required
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all resize-none"
+                  <textarea placeholder="e.g. Hospital visit, grocery shopping..." rows="2"
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all resize-none ${
+                      formErrors.need ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                    }`}
                     value={newRequest.need}
-                    onChange={(e) => setNewRequest({ ...newRequest, need: e.target.value })}
+                    onChange={(e) => handleRequestChange('need', e.target.value)}
                   />
+                  {formErrors.need && <p className="mt-1 text-xs text-red-600">{formErrors.need}</p>}
                 </div>
 
+                {/* DATE + TIME */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Date</label>
-                    <input type="date" required
-                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                    <input type="date" min={todayStr()}
+                      className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                        formErrors.needed_date ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                      }`}
                       value={newRequest.needed_date}
-                      onChange={(e) => setNewRequest({ ...newRequest, needed_date: e.target.value })}
+                      onChange={(e) => handleRequestChange('needed_date', e.target.value)}
                     />
+                    {formErrors.needed_date && <p className="mt-1 text-xs text-red-600">{formErrors.needed_date}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Time</label>
-                    <input type="time" required
-                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium"
+                    <input type="time"
+                      className={`w-full px-4 py-3 bg-slate-50 border-2 rounded-xl focus:ring-4 outline-none transition-all font-medium ${
+                        formErrors.needed_time ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+                      }`}
                       value={newRequest.needed_time}
-                      onChange={(e) => setNewRequest({ ...newRequest, needed_time: e.target.value })}
+                      onChange={(e) => handleRequestChange('needed_time', e.target.value)}
                     />
+                    {formErrors.needed_time && <p className="mt-1 text-xs text-red-600">{formErrors.needed_time}</p>}
                   </div>
                 </div>
 
