@@ -14,24 +14,78 @@ const HelperSignup = () => {
     phone: '',
   });
 
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
 
+  // ── Validators ──────────────────────────────────────────
+  const validators = {
+    name: (v) => {
+      if (!v.trim()) return 'Full Name is required.';
+      if (/\d/.test(v)) return 'Name must not contain numbers.';
+      if (!/^[a-zA-Z\s'-]+$/.test(v)) return 'Name can only contain letters, spaces, hyphens or apostrophes.';
+      return '';
+    },
+    phone: (v) => {
+      if (!v.trim()) return 'Phone number is required.';
+      if (!/^\+?[\d\s\-()]{7,15}$/.test(v)) return 'Please enter a valid phone number.';
+      return '';
+    },
+    email: (v) => {
+      if (!v.trim()) return 'Email is required.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Please enter a valid email address (e.g. you@gmail.com).';
+      return '';
+    },
+    password: (v) => {
+      if (!v) return 'Password is required.';
+      if (v.length < 6) return 'Password must be at least 6 characters.';
+      return '';
+    },
+    city: (v) => {
+      if (!v.trim()) return 'City is required.';
+      if (/\d/.test(v)) return 'City name must not contain numbers.';
+      return '';
+    },
+    age: (v) => {
+      if (!v) return 'Age is required.';
+      if (!/^\d+$/.test(v)) return 'Age must be a number.';
+      if (Number(v) < 18) return 'Helper must be at least 18 years old.';
+      if (Number(v) > 100) return 'Please enter a valid age.';
+      return '';
+    },
+    skills: (v) => {
+      if (!v.trim()) return 'Please list at least one skill.';
+      return '';
+    },
+  };
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    // Block numbers from name and city fields
+    if ((name === 'name' || name === 'city') && /\d/.test(value)) return;
+
+    setFormData({ ...formData, [name]: value });
+    setErrors({ ...errors, [name]: validators[name]?.(value) || '' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    // Run all validators
+    const newErrors = {};
+    Object.keys(validators).forEach((field) => {
+      newErrors[field] = validators[field](formData[field]);
+    });
+    setErrors(newErrors);
+    if (Object.values(newErrors).some((e) => e)) return;
+
+    setLoading(true);
     try {
-      // We use FormData because the backend is configured to parse multpart/form-data
-      // for this route, even if we aren't sending files yet.
       const payload = new FormData();
       payload.append('name', formData.name);
       payload.append('email', formData.email);
@@ -41,18 +95,22 @@ const HelperSignup = () => {
       payload.append('phone', formData.phone);
       payload.append('skills', formData.skills);
 
-      // Call signup with the 'true' flag for helper signup
       await signup(payload, true);
-
       alert('Account created! Please login and complete your profile for verification.');
       navigate('/login');
-
     } catch (err) {
       setError(err.response?.data?.error || 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const inputClass = (field) =>
+    `w-full px-4 py-3 rounded-xl border outline-none transition-all bg-white focus:ring-2 ${
+      errors[field]
+        ? 'border-red-400 focus:ring-red-400'
+        : 'border-gray-200 focus:ring-emerald-500'
+    }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-200 via-gray-100 to-slate-300 flex items-center justify-center px-4">
@@ -69,33 +127,30 @@ const HelperSignup = () => {
           </p>
           <ul className="space-y-3 text-sm text-gray-600">
             <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Quick registration with basic details
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Upload documents in your dashboard later
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Get verified and start helping
             </li>
           </ul>
         </div>
 
-        {/* RIGHT PANEL - FORM */}
+        {/* RIGHT PANEL */}
         <div className="px-6 sm:px-10 py-12 bg-white/60">
-          <h2 className="text-2xl font-semibold text-center mb-6">
-            Helper Sign Up
-          </h2>
+          <h2 className="text-2xl font-semibold text-center mb-6">Helper Sign Up</h2>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
-              {error}
-            </div>
+            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* NAME + PHONE */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Full Name</label>
@@ -104,10 +159,10 @@ const HelperSignup = () => {
                   type="text"
                   value={formData.name}
                   onChange={handleChange}
-                  required
                   placeholder="John Doe"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                  className={inputClass('name')}
                 />
+                {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Phone Number</label>
@@ -116,26 +171,28 @@ const HelperSignup = () => {
                   type="tel"
                   value={formData.phone}
                   onChange={handleChange}
-                  required
-                  placeholder="+1 234..."
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                  placeholder="+91 9876543210"
+                  className={inputClass('phone')}
                 />
+                {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
               </div>
             </div>
 
+            {/* EMAIL */}
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Email Address</label>
               <input
                 name="email"
-                type="email"
+                type="text"
                 value={formData.email}
                 onChange={handleChange}
-                required
-                placeholder="helper@example.com"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                placeholder="you@gmail.com"
+                className={inputClass('email')}
               />
+              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
             </div>
 
+            {/* PASSWORD */}
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Password</label>
               <input
@@ -143,12 +200,13 @@ const HelperSignup = () => {
                 type="password"
                 value={formData.password}
                 onChange={handleChange}
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                placeholder="Min. 6 characters"
+                className={inputClass('password')}
               />
+              {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
             </div>
 
+            {/* CITY + AGE */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase ml-1">City</label>
@@ -157,24 +215,26 @@ const HelperSignup = () => {
                   type="text"
                   value={formData.city}
                   onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                  placeholder="Chennai"
+                  className={inputClass('city')}
                 />
+                {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city}</p>}
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Age</label>
+                <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Age (min. 18)</label>
                 <input
                   name="age"
-                  type="number"
-                  min="18"
+                  type="text"
                   value={formData.age}
                   onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white"
+                  placeholder="18"
+                  className={inputClass('age')}
                 />
+                {errors.age && <p className="mt-1 text-xs text-red-600">{errors.age}</p>}
               </div>
             </div>
 
+            {/* SKILLS */}
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase ml-1">Your Skills</label>
               <textarea
@@ -183,10 +243,12 @@ const HelperSignup = () => {
                 value={formData.skills}
                 onChange={handleChange}
                 placeholder="e.g. Sign Language, Mobility Support, Guiding"
-                required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all bg-white resize-none"
+                className={`${inputClass('skills')} resize-none`}
               />
-              <p className="text-[10px] text-gray-400 mt-1 ml-1">Separate skills with commas.</p>
+              {errors.skills
+                ? <p className="mt-1 text-xs text-red-600">{errors.skills}</p>
+                : <p className="text-[10px] text-gray-400 mt-1 ml-1">Separate skills with commas.</p>
+              }
             </div>
 
             <button
@@ -201,9 +263,7 @@ const HelperSignup = () => {
 
           <div className="mt-8 text-sm text-center text-gray-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-teal-700 font-semibold hover:underline">
-              Sign In
-            </Link>
+            <Link to="/login" className="text-teal-700 font-semibold hover:underline">Sign In</Link>
           </div>
         </div>
       </div>
