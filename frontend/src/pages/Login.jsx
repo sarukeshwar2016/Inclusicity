@@ -14,8 +14,16 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
   const [index, setIndex] = useState(0);
+
+  const validateEmail = (value) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!value) return 'Email is required.';
+    if (!emailRegex.test(value)) return 'Please enter a valid email address (e.g. you@example.com).';
+    return '';
+  };
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -30,8 +38,14 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    const emailValidationError = validateEmail(email);
+    if (emailValidationError) {
+      setEmailError(emailValidationError);
+      return;
+    }
+
+    setLoading(true);
     try {
       const role = await login(email, password);
       if (role === 'user') navigate('/user/home');
@@ -84,13 +98,23 @@ const Login = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
-                type="email"
+                type="text"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError(validateEmail(e.target.value));
+                }}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className={`w-full px-4 py-3 rounded-xl border bg-white/70 focus:outline-none focus:ring-2 ${
+                  emailError
+                    ? 'border-red-400 focus:ring-red-400'
+                    : 'border-gray-300 focus:ring-emerald-500'
+                }`}
                 placeholder="you@example.com"
               />
+              {emailError && (
+                <p className="mt-1 text-xs text-red-600">{emailError}</p>
+              )}
             </div>
 
             <div>
