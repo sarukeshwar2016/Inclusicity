@@ -2,224 +2,437 @@
 import Navbar from '../components/Navbar';
 import SideBar from '../components/SideBar';
 import AccessibilityMap from '../components/AccessibilityMap';
-import { motion } from 'framer-motion';
-import { AlertCircle, X, Menu, Search, Navigation, MapPin, CheckCircle, AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
-import { mockAccessibleLocations, accessibilityFeatures, calculateRouteAccessibility } from '../lib/accessibility-data';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  MapPin, Navigation, Search, X, Locate, Route,
+  ChevronRight, Star, Loader2, AlertCircle, CheckCircle, AlertTriangle,
+} from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { mockAccessibleLocations, accessibilityFeatures, getAccessibilityColor } from '../lib/accessibility-data';
+
+// ── Haversine distance (km) ───────────────────────
+const haversine = (lat1, lng1, lat2, lng2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// ── Nominatim geocode (free) ──────────────────────
+const geocode = async (query) => {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', Chennai')}&format=json&limit=1`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  const data = await res.json();
+  if (!data.length) return null;
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name };
+};
+
+const typeLabels = {
+  hospital: '🏥 Hospitals',
+  cafe: '☕ Cafés',
+  tourist: '📸 Tourist',
+  transport: '🚇 Transport',
+  mall: '🛍️ Malls',
+  park: '🌳 Parks',
+  busstand: '🚌 Bus Stand',
+};
+
+const scoreLabel = (s) =>
+  s >= 4.5 ? 'Excellent' : s >= 3.5 ? 'Good' : s >= 2.5 ? 'Fair' : 'Limited';
 
 const UserMap = () => {
-  const [isTipDismissed, setIsTipDismissed] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // ── Filters & search
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState(new Set());
-  const [fromLocation, setFromLocation] = useState('');
-  const [toLocation, setToLocation] = useState('');
+
+  // ── Map controls
+  const [flyToTarget, setFlyToTarget] = useState(null);
+  const [highlightId, setHighlightId] = useState(null);
+  const [userPos, setUserPos] = useState(null);
+  const [nearMeActive, setNearMeActive] = useState(false);
+  const [nearMeLoading, setNearMeLoading] = useState(false);
+
+  // ── Route planner
+  const [fromText, setFromText] = useState('');
+  const [toText, setToText] = useState('');
+  const [fromCoord, setFromCoord] = useState(null);
+  const [toCoord, setToCoord] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
+  const [routeError, setRouteError] = useState('');
+  const [routeLoading, setRouteLoading] = useState(false);
 
-  const locationTypes = [...new Set(mockAccessibleLocations.map(loc => loc.type))];
+  // ── UI state
+  const [listOpen, setListOpen] = useState(true);
 
-  const typeLabels = {
-    hospital: 'Hospitals',
-    cafe: 'Cafés & Restaurants',
-    tourist: 'Tourist Spots',
-    transport: 'Transport Hubs',
-    mall: 'Malls',
-    park: 'Parks',
+  const locationTypes = [...new Set(mockAccessibleLocations.map((l) => l.type))];
+
+  // ── Filtered locations
+  const filteredLocations = mockAccessibleLocations
+    .filter((loc) => {
+      const matchesSearch = loc.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = selectedTypes.size === 0 || selectedTypes.has(loc.type);
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      if (nearMeActive && userPos) {
+        return (
+          haversine(userPos.lat, userPos.lng, a.lat, a.lng) -
+          haversine(userPos.lat, userPos.lng, b.lat, b.lng)
+        );
+      }
+      return b.score - a.score;
+    });
+
+  const toggleType = (type) => {
+    const s = new Set(selectedTypes);
+    s.has(type) ? s.delete(type) : s.add(type);
+    setSelectedTypes(s);
   };
 
-  const toggleTypeFilter = (type) => {
-    const newTypes = new Set(selectedTypes);
-    newTypes.has(type) ? newTypes.delete(type) : newTypes.add(type);
-    setSelectedTypes(newTypes);
+  // ── Near Me
+  const handleNearMe = useCallback(() => {
+    if (nearMeActive) { setNearMeActive(false); return; }
+    setNearMeLoading(true);
+    navigator.geolocation?.getCurrentPosition(
+      (p) => {
+        const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setUserPos(pos);
+        setFlyToTarget(pos);
+        setNearMeActive(true);
+        setNearMeLoading(false);
+      },
+      () => {
+        alert('Could not get your location. Please allow location access.');
+        setNearMeLoading(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  }, [nearMeActive]);
+
+  // ── Select location from list
+  const handleSelectLocation = (loc) => {
+    setFlyToTarget({ lat: loc.lat, lng: loc.lng });
+    setHighlightId(loc.id);
   };
 
-  const filteredLocations = mockAccessibleLocations.filter(loc => {
-    const matchesSearch = loc.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = selectedTypes.size === 0 || selectedTypes.has(loc.type);
-    return matchesSearch && matchesType;
-  });
+  // ── Real route planning
+  const handleFindRoute = async () => {
+    if (!fromText.trim() || !toText.trim()) return;
+    setRouteLoading(true);
+    setRouteError('');
+    setRouteInfo(null);
+    setFromCoord(null);
+    setToCoord(null);
 
-  const handleFindRoute = () => {
-    if (!fromLocation || !toLocation) return;
-    const mockRoute = calculateRouteAccessibility([fromLocation, toLocation]);
-    setRouteInfo(mockRoute);
+    try {
+      const [from, to] = await Promise.all([geocode(fromText), geocode(toText)]);
+
+      if (!from) { setRouteError(`Could not find "${fromText}" on the map.`); setRouteLoading(false); return; }
+      if (!to)   { setRouteError(`Could not find "${toText}" on the map.`); setRouteLoading(false); return; }
+
+      setFromCoord(from);
+      setToCoord(to);
+      // routeInfo will be set by AccessibilityMap's onRouteFound callback
+    } catch {
+      setRouteError('Network error. Please check your connection.');
+      setRouteLoading(false);
+    }
+  };
+
+  const handleRouteFound = (info) => {
+    setRouteInfo(info);
+    setRouteLoading(false);
+  };
+
+  const handleRouteError = (msg) => {
+    setRouteError(msg);
+    setRouteLoading(false);
+  };
+
+  const clearRoute = () => {
+    setFromCoord(null);
+    setToCoord(null);
+    setRouteInfo(null);
+    setRouteError('');
+    setFromText('');
+    setToText('');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <Navbar />
 
-      {/* Skip link */}
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-indigo-600 focus:text-white focus:px-6 focus:py-3 focus:rounded-lg">
-        Skip to main content
-      </a>
+      <div className="flex pt-16">
+        <SideBar />
 
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-20 left-4 z-50 md:hidden bg-white rounded-full p-3 shadow-lg border"
-      >
-        <Menu size={24} />
-      </button>
+        <main className="flex-1 min-h-screen" style={{ marginLeft: '240px' }}>
+          <div className="px-6 py-8">
 
-      <div className="flex">
-        <SideBar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-3xl font-extrabold text-slate-900">Accessibility Map</h1>
+              <p className="text-slate-500 mt-1">Find wheelchair-friendly places, plan real routes, and explore Chennai accessibly.</p>
+            </div>
 
-        <main id="main-content" className="flex-1 pt-16 min-h-screen">
-          <motion.div className="md:ml-60">
-            <div className="px-4 sm:px-6 lg:px-8 py-10 max-w-full">
-              {/* Hero */}
-              <header className="text-center mb-12">
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-6">Accessibility Map</h1>
-                <p className="text-lg sm:text-xl text-gray-700 max-w-4xl mx-auto">
-                  Explore wheelchair-friendly locations across Chennai. Search, filter, and plan inclusive journeys.
-                </p>
-              </header>
+            {/* Search + Filters Bar */}
+            <div className="mb-5 flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search locations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none text-sm"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
 
-              {/* Search & Filters */}
-              <div className="max-w-5xl mx-auto mb-10 space-y-8">
-                <div className="relative">
-                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
-                  <input
-                    type="text"
-                    placeholder="Search for a place (e.g., Apollo Hospital, Marina Beach...)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-14 pr-6 py-5 text-lg bg-white border border-gray-200 rounded-2xl shadow-lg focus:ring-4 focus:ring-indigo-300 focus:outline-none"
+              {/* Near Me */}
+              <button
+                onClick={handleNearMe}
+                disabled={nearMeLoading}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-sm transition-all shadow-sm ${
+                  nearMeActive
+                    ? 'bg-indigo-600 text-white shadow-indigo-200'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-400'
+                }`}
+              >
+                {nearMeLoading ? <Loader2 size={16} className="animate-spin" /> : <Locate size={16} />}
+                {nearMeActive ? 'Near Me ✓' : 'Near Me'}
+              </button>
+
+              {/* Type filters */}
+              {locationTypes.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => toggleType(type)}
+                  className={`px-4 py-2.5 rounded-2xl text-sm font-medium transition-all ${
+                    selectedTypes.has(type)
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-400'
+                  }`}
+                >
+                  {typeLabels[type] || type}
+                </button>
+              ))}
+              {selectedTypes.size > 0 && (
+                <button onClick={() => setSelectedTypes(new Set())} className="text-sm text-slate-500 hover:text-slate-800 underline">
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+              {/* ── MAP (2 cols) ── */}
+              <div className="lg:col-span-2 flex flex-col gap-4">
+                <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100" style={{ height: '620px' }}>
+                  <AccessibilityMap
+                    locations={filteredLocations}
+                    flyToTarget={flyToTarget}
+                    highlightId={highlightId}
+                    fromCoord={fromCoord}
+                    toCoord={toCoord}
+                    onRouteFound={handleRouteFound}
+                    onRouteError={handleRouteError}
                   />
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-4">
-                  {locationTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => toggleTypeFilter(type)}
-                      className={`px-6 py-3 rounded-2xl font-medium transition-all ${
-                        selectedTypes.has(type)
-                          ? 'bg-indigo-600 text-white shadow-lg'
-                          : 'bg-white text-gray-800 border border-gray-300 hover:border-indigo-400'
-                      }`}
+                {/* Route result */}
+                <AnimatePresence>
+                  {routeInfo && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 flex items-center gap-6"
                     >
-                      {typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1)}
-                    </button>
-                  ))}
-                  {selectedTypes.size > 0 && (
-                    <button onClick={() => setSelectedTypes(new Set())} className="px-6 py-3 rounded-2xl text-gray-600">
-                      Clear Filters
-                    </button>
+                      <CheckCircle size={28} className="text-emerald-500 flex-shrink-0" />
+                      <div>
+                        <p className="font-bold text-slate-900 text-lg">Route Found!</p>
+                        <p className="text-slate-500 text-sm">
+                          {routeInfo.distance} km &nbsp;·&nbsp; ~{routeInfo.duration} min drive
+                        </p>
+                      </div>
+                      <button onClick={clearRoute} className="ml-auto flex items-center gap-1 text-sm text-red-500 hover:text-red-700 font-semibold">
+                        <X size={16} /> Clear Route
+                      </button>
+                    </motion.div>
                   )}
+                </AnimatePresence>
+
+                {routeError && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3 text-red-700 text-sm">
+                    <AlertTriangle size={20} className="flex-shrink-0" />
+                    {routeError}
+                    <button onClick={() => setRouteError('')} className="ml-auto">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div className="bg-white rounded-2xl shadow border border-slate-100 p-4">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Accessibility Features</p>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(accessibilityFeatures).map(([key, { icon, label }]) => (
+                      <div key={key} className="flex items-center gap-2 text-sm text-slate-700">
+                        <span>{icon}</span> {label}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Map + Route Planner Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Map (2 columns on large screens) */}
-                <div className="lg:col-span-2 bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
-                  <div className="h-[600px] md:h-[700px] lg:h-[800px]">
-                    <AccessibilityMap locations={filteredLocations} />
-                  </div>
+              {/* ── RIGHT PANEL ── */}
+              <div className="lg:col-span-1 flex flex-col gap-4">
 
-                  {/* Legend below map */}
-                  <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-t">
-                    <h3 className="text-xl font-bold text-gray-900 mb-6">Accessibility Features</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
-                      {Object.entries(accessibilityFeatures).map(([key, { icon, label }]) => (
-                        <div key={key} className="flex items-center gap-4 bg-white/70 rounded-xl p-4 hover:shadow-md transition">
-                          <span className="text-3xl">{icon}</span>
-                          <span className="font-medium text-gray-800">{label}</span>
-                        </div>
-                      ))}
+                {/* Route Planner */}
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-5">
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+                    <Route size={20} className="text-indigo-600" /> Plan a Route
+                  </h2>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">From</label>
+                      <input
+                        type="text"
+                        value={fromText}
+                        onChange={(e) => setFromText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleFindRoute()}
+                        placeholder="e.g. Marina Beach, Chennai"
+                        className="w-full mt-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+                      />
                     </div>
-                  </div>
-                </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">To</label>
+                      <input
+                        type="text"
+                        value={toText}
+                        onChange={(e) => setToText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleFindRoute()}
+                        placeholder="e.g. Apollo Hospital, Chennai"
+                        className="w-full mt-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+                      />
+                    </div>
 
-                {/* Route Planner Sidebar (1 column) */}
-                <div className="lg:col-span-1">
-                  <div className="bg-white rounded-3xl shadow-2xl p-6 space-y-6 sticky top-24">
-                    <h2 className="text-2xl font-bold flex items-center gap-3">
-                      <Navigation size={28} className="text-indigo-600" />
-                      Plan Accessible Route
-                    </h2>
+                    <button
+                      onClick={handleFindRoute}
+                      disabled={routeLoading || !fromText.trim() || !toText.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50"
+                    >
+                      {routeLoading
+                        ? <><Loader2 size={16} className="animate-spin" /> Finding Route...</>
+                        : <><Navigation size={16} /> Find Route</>
+                      }
+                    </button>
 
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-                        <input
-                          type="text"
-                          placeholder="Your location or place name"
-                          value={fromLocation}
-                          onChange={(e) => setFromLocation(e.target.value)}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                        <input
-                          type="text"
-                          placeholder="Destination"
-                          value={toLocation}
-                          onChange={(e) => setToLocation(e.target.value)}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-
-                      <button
-                        onClick={handleFindRoute}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3"
-                      >
-                        <MapPin size={20} />
-                        Find Accessible Route
+                    {(fromCoord || toCoord) && (
+                      <button onClick={clearRoute} className="w-full text-xs text-slate-500 hover:text-red-500 underline text-center">
+                        Clear route
                       </button>
-                    </div>
-
-                    {routeInfo && (
-                      <div className={`p-5 rounded-xl border-2 ${routeInfo.score >= 3.5 ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-300'}`}>
-                        <div className="flex items-center gap-3 mb-3">
-                          {routeInfo.score >= 3.5 ? <CheckCircle size={28} className="text-green-600" /> : <AlertTriangle size={28} className="text-yellow-600" />}
-                          <div>
-                            <p className="font-bold text-lg">Route Accessibility</p>
-                            <p className="text-2xl font-extrabold">{routeInfo.score}/5</p>
-                          </div>
-                        </div>
-                        <p className="text-gray-700">{routeInfo.description}</p>
-                        <div className="mt-3 space-y-1 text-sm">
-                          {routeInfo.hasRamps && <p>✓ Ramps available</p>}
-                          {routeInfo.hasSmoothSurface && <p>✓ Smooth pathways</p>}
-                          {routeInfo.hasElevators && <p>✓ Elevators present</p>}
-                          {routeInfo.hasSlopeWarnings && <p>⚠ Some steep slopes</p>}
-                        </div>
-                      </div>
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* Tip */}
-              {!isTipDismissed && (
-                <div className="text-center mt-12">
-                  <div className="inline-block relative bg-gradient-to-r from-indigo-100 to-purple-100 text-gray-800 px-12 py-8 rounded-3xl shadow-2xl border border-indigo-200 max-w-4xl">
-                    <p className="text-xl font-semibold flex items-center justify-center gap-4">
-                      <span className="text-3xl">💡</span>
-                      Click any marker to see detailed accessibility information!
-                    </p>
-                    <button
-                      onClick={() => setIsTipDismissed(true)}
-                      className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 p-2 rounded-full hover:bg-white/50"
-                    >
-                      <X size={24} />
-                    </button>
-                  </div>
+                {/* Location List */}
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 flex flex-col overflow-hidden" style={{ maxHeight: '460px' }}>
+                  <button
+                    onClick={() => setListOpen((v) => !v)}
+                    className="flex items-center justify-between px-5 py-4 border-b border-slate-100"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin size={18} className="text-indigo-600" />
+                      <span className="font-bold text-slate-900">
+                        Locations
+                        <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
+                          {filteredLocations.length}
+                        </span>
+                      </span>
+                    </div>
+                    <ChevronRight
+                      size={18}
+                      className={`text-slate-400 transition-transform ${listOpen ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+
+                  {listOpen && (
+                    <div className="overflow-y-auto flex-1 divide-y divide-slate-50">
+                      {filteredLocations.length === 0 ? (
+                        <p className="text-center text-slate-400 text-sm py-8">No locations match your filters.</p>
+                      ) : (
+                        filteredLocations.map((loc) => {
+                          const distText = userPos
+                            ? `${haversine(userPos.lat, userPos.lng, loc.lat, loc.lng).toFixed(1)} km`
+                            : null;
+                          const color = getAccessibilityColor(loc.score);
+                          return (
+                            <button
+                              key={loc.id}
+                              onClick={() => handleSelectLocation(loc)}
+                              className={`w-full text-left px-5 py-3.5 hover:bg-indigo-50 transition-colors ${
+                                highlightId === loc.id ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">{loc.name}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-xs text-slate-400">{typeLabels[loc.type] || loc.type}</span>
+                                    {distText && (
+                                      <span className="text-xs text-indigo-500 font-medium">· {distText}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex-shrink-0 flex items-center gap-1">
+                                  <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                                  <span
+                                    className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                                    style={{ backgroundColor: color }}
+                                  >
+                                    {loc.score}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
 
-              {/* Report Button */}
-              <button className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-6 rounded-full shadow-2xl flex items-center gap-5 text-xl font-bold hover:scale-110 transition">
-                <AlertCircle size={32} />
-                Report Issue
-              </button>
+                {/* Stats */}
+                {filteredLocations.length > 0 && (
+                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 p-4">
+                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">Summary</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                        <p className="text-2xl font-black text-indigo-600">{filteredLocations.length}</p>
+                        <p className="text-xs text-slate-500">Locations</p>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                        <p className="text-2xl font-black text-emerald-600">
+                          {(filteredLocations.reduce((a, l) => a + l.score, 0) / filteredLocations.length).toFixed(1)}
+                        </p>
+                        <p className="text-xs text-slate-500">Avg. Score</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </motion.div>
+          </div>
         </main>
       </div>
     </div>
